@@ -1091,6 +1091,7 @@ window.Dash = (() => {
     </div><div class="dgrid">
       ${card('Programme: WBS progress and milestones', 'Light bar = baseline; dark fill = % complete logged; line = data date; diamonds = milestones (green achieved, red late or at risk).', ganttLegend() + fig('gantt', 'auto'), 1)}
       ${card('S-curve: planned, earned and actual', 'Planned value follows the WBS baseline; earned value comes from the progress log; actual cost from the cost log.', legend([['pv', 'Planned value'], ['ev', 'Earned value'], ['ac', 'Actual cost']]) + fig('scurve'), 1)}
+      ${card('Progress towards the contract value', `Cumulative gross certified against the contract sum (${c}). Planned = WBS baseline scaled to the revised contract.`, legend([['ev', 'Certified to date (gross)'], ['pv', 'Planned'], ['ok2', 'Paid to date'], ['ctr', 'Contract value']]) + fig('cash', 'tall'), 1)}
       ${card('Upcoming milestones', '', upcoming())}
       ${card('Risk heat map', 'Open risks by likelihood × impact.', heat())}
       ${card('PCO pipeline', `Value by status (${c}).`, pipeline())}
@@ -2126,6 +2127,26 @@ window.Dash = (() => {
   function drawCash(el) {
     const W = el.clientWidth, H = el.clientHeight; if (!W) return;
     const contract = num(D.project.contract), revised = contract + sum(D.pcos.filter(p => p.status === 'Approved'), p => p.value);
+    const notes = [];
+    if (!contract) notes.push('Contract sum not set: enter it on the Contract & BOQ tab to draw the target line.');
+    if (D.ipcs.length && !D.ipcs.some(r => num(r.certified))) notes.push('IPC amounts are zero: use “Re-read IPC files” or “Correct figures” on the Payments tab.');
+    const noteSvg = (W) => notes.map((n, i) => `<text x="${66}" y="${30 + i * 18}" font-size="12.5" font-weight="700" fill="var(--bad)">${esc(n)}</text>`).join('');
+    const datedIpcs = D.ipcs.filter(r => isFinite(dt(r.period)));
+    // IPCs without a readable period: plot certificate by certificate.
+    if (D.ipcs.length && datedIpcs.length < D.ipcs.length / 2) {
+      const list = sortedIpcs(); let c = 0, p = 0;
+      const cert = list.map((r, i) => [i, c += num(r.certified)]), paid = list.map((r, i) => [i, p += num(r.paid)]);
+      const top = Math.max(revised, contract, c, p, 1), small = W < 520, m = { l: 58, r: small ? 12 : 150, t: 14, b: 26 }, max = niceMax(top * 1.04);
+      const x = i => m.l + (list.length === 1 ? (W - m.l - m.r) / 2 : (W - m.l - m.r) * i / (list.length - 1)), y = v => H - m.b - (H - m.t - m.b) * v / max;
+      let s2 = yAxis(W, H, m, max);
+      if (revised) s2 += `<line x1="${m.l}" x2="${W - m.r}" y1="${y(revised)}" y2="${y(revised)}" stroke="var(--ink)" stroke-width="1.6" stroke-dasharray="7 5"/>${small ? '' : `<text x="${W - m.r + 6}" y="${y(revised) + 4}" font-size="11.5" font-weight="700" fill="var(--ink)">Contract value</text><text x="${W - m.r + 6}" y="${y(revised) + 18}" font-size="11" fill="var(--muted)">${money(revised)}</text>`}`;
+      s2 += lineSeries(paid, x, y, 'var(--c-pa)') + lineSeries(cert, x, y, 'var(--c-ev)');
+      if (revised && c) s2 += `<text x="${x(cert.length - 1) - 6}" y="${y(c) - 10}" text-anchor="end" font-size="12" font-weight="800" fill="var(--c-ev)">${(c / revised * 100).toFixed(1)}% of contract</text>`;
+      const step = Math.ceil(list.length / (small ? 5 : 14));
+      s2 += list.map((r, i) => i % step === 0 || i === list.length - 1 ? `<text x="${x(i)}" y="${H - 6}" text-anchor="middle" font-size="11" fill="var(--muted)">${esc(r.no)}</text>` : '').join('');
+      notes.push('IPC periods could not be read, so certificates are shown in sequence; add the period to each IPC to plot them by month.');
+      el.innerHTML = `<svg viewBox="0 0 ${W} ${H}">${s2}${noteSvg(W)}</svg>`; return;
+    }
     const ts = [...D.ipcs.map(r => dt(r.period)), ...D.ipcs.map(r => dt(r.paidDate)), dt(D.project.commencement), dt(D.project.completion), ...D.wbs.flatMap(w => [dt(w.start), dt(w.finish)])].filter(isFinite);
     if (!ts.length) return empty(el, 'Add IPCs, or the contract dates on the Contract & BOQ tab.');
     const a0 = new Date(Math.min(...ts)), b0 = new Date(Math.max(...ts, dd())), ms = [];
@@ -2151,7 +2172,7 @@ window.Dash = (() => {
     s1 += lineSeries(paid, x, y, 'var(--c-pa)') + lineSeries(cert, x, y, 'var(--c-ev)');
     const lastC = cert.filter(Boolean).pop();
     if (lastC && revised) { const pc = lastC[1] / revised * 100; s1 += `<text x="${x(lastC[0]) + 8}" y="${y(lastC[1]) - 8}" font-size="12" font-weight="800" fill="var(--c-ev)">${pc.toFixed(1)}% of contract</text>`; }
-    el.innerHTML = `<svg viewBox="0 0 ${W} ${H}">${s1}${xLabels(ms, x, H, small)}</svg>`;
+    el.innerHTML = `<svg viewBox="0 0 ${W} ${H}">${s1}${xLabels(ms, x, H, small)}${noteSvg(W)}</svg>`;
   }
   const CHARTS = { scurve: drawScurve, idx: drawIdx, gantt: drawGantt, ipc: drawIpc, cash: drawCash, cpm: drawCpm, manpower: drawManpower };
 
