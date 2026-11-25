@@ -251,6 +251,11 @@ table.mintbl td:first-child{font-weight:700;white-space:nowrap}table.mintbl td:n
 .linkbtn{background:none;border:0;color:var(--link);text-decoration:underline;cursor:pointer;font:inherit;font-size:13px;padding:0 4px}
 .statusbar{position:sticky;top:76px;z-index:3;margin:0 0 12px;padding:10px 14px;border-radius:8px;background:var(--th);border-left:4px solid var(--hv);font-size:14.5px}
 @media(max-width:900px){.statusbar{top:0}}
+.vals{flex-basis:100%;display:flex;flex-wrap:wrap;gap:4px 18px;padding-left:18px;font-size:14px;font-variant-numeric:tabular-nums}
+.vals>span{display:inline-flex;flex-direction:column;line-height:1.25}.vals small{font-size:11.5px;color:var(--muted);font-weight:600}
+.vals .owe{color:var(--bad);font-weight:700}.vals .clear{color:var(--good);font-weight:700}
+.vals.ipcref{margin-top:4px;padding:6px 10px 6px 18px;background:var(--th);border-radius:6px;margin-left:18px;flex-basis:calc(100% - 18px)}
+.trail>summary .vals{order:10}
 
 </style>
 <script>new MutationObserver(()=>{for(const c of document.querySelectorAll('.stack td:not([data-l])')){let i=0,p=c;while(p=p.previousElementSibling)i+=p.colSpan;c.dataset.l=c.closest('table').rows[0].cells[i]?.textContent||''}}).observe(document,{childList:true,subtree:true})</script>

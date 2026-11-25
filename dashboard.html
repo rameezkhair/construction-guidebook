@@ -251,6 +251,11 @@ table.mintbl td:first-child{font-weight:700;white-space:nowrap}table.mintbl td:n
 .linkbtn{background:none;border:0;color:var(--link);text-decoration:underline;cursor:pointer;font:inherit;font-size:13px;padding:0 4px}
 .statusbar{position:sticky;top:76px;z-index:3;margin:0 0 12px;padding:10px 14px;border-radius:8px;background:var(--th);border-left:4px solid var(--hv);font-size:14.5px}
 @media(max-width:900px){.statusbar{top:0}}
+.vals{flex-basis:100%;display:flex;flex-wrap:wrap;gap:4px 18px;padding-left:18px;font-size:14px;font-variant-numeric:tabular-nums}
+.vals>span{display:inline-flex;flex-direction:column;line-height:1.25}.vals small{font-size:11.5px;color:var(--muted);font-weight:600}
+.vals .owe{color:var(--bad);font-weight:700}.vals .clear{color:var(--good);font-weight:700}
+.vals.ipcref{margin-top:4px;padding:6px 10px 6px 18px;background:var(--th);border-radius:6px;margin-left:18px;flex-basis:calc(100% - 18px)}
+.trail>summary .vals{order:10}
 
 </style>
 <script>new MutationObserver(()=>{for(const c of document.querySelectorAll('.stack td:not([data-l])')){let i=0,p=c;while(p=p.previousElementSibling)i+=p.colSpan;c.dataset.l=c.closest('table').rows[0].cells[i]?.textContent||''}}).observe(document,{childList:true,subtree:true})</script>
@@ -1528,7 +1533,7 @@ window.Dash = (() => {
         ${line('Net (calculated)', money(n, true), 'tot')}${num(r.statedNet) ? line('Net per certificate', money(num(r.statedNet), true), Math.abs(num(r.statedNet) - n) > tolOf(n) ? 'err' : '') : ''}
         ${num(r.vat) ? line('VAT', money(num(r.vat), true)) + line('Amount due', money(due, true)) : ''}
         ${line('Paid' + (r.paidDate ? ' on ' + fmtD(r.paidDate) : ''), money(num(r.paid), true))}${line('Outstanding', money(due - num(r.paid), true))}</tbody></table>`;
-      return `<details class="trail" data-ed="ipc-${esc(r.no)}"${openEd.has('ipc-' + r.no) ? ' open' : ''}><summary><b>${esc(r.no)}</b><span class="cap">${esc(r.period)}</span><span class="mtitle">Net ${money(n, true)}</span>${badge}<small class="cap">paid ${money(num(r.paid), true)}</small></summary>
+      return `<details class="trail" data-ed="ipc-${esc(r.no)}"${openEd.has('ipc-' + r.no) ? ' open' : ''}><summary><b>${esc(r.no)}</b><span class="cap">${esc(r.period)}</span>${badge}${ipcStrip(r)}</summary>
         <div class="mbody"><div class="ipcgrid"><div>${breakdown}${payBox('ipc', r.no, due, num(r.paid), r.pays)}</div><div><h4 class="ck">Calculation checks</h4>${checkList(cs)}</div></div>
         <div class="acts mfoot">${r.file ? `<span class="cap">${esc(r.file)}</span><button type="button" class="btn sm" data-act="sub-open" data-id="${esc(r.fileId)}">Open file</button>` : '<span class="cap">No file stored</span>'}<button type="button" class="btn sm" data-act="ipc-del" data-id="${esc(r.no)}">${ipcDelArm === r.no ? 'Confirm delete' : 'Delete IPC'}</button></div></div></details>`;
     }).join('');
@@ -1674,6 +1679,8 @@ window.Dash = (() => {
     return out;
   }
   let invDelArm = '';
+  const vstrip = (pairs, cls) => `<span class="vals${cls ? ' ' + cls : ''}">${pairs.filter(p => p).map(([k, v, c]) => `<span${c ? ` class="${c}"` : ''}><small>${k}</small>${v}</span>`).join('')}</span>`;
+  const ipcStrip = (r, label) => { const n = ipcNet(r), due = n + num(r.vat), bal = due - num(r.paid); return vstrip([label ? ['IPC', esc(r.no)] : null, ['Gross', money(num(r.certified), true)], ['Retention', money(num(r.retention), true)], ['Advance rec.', money(num(r.advance), true)], num(r.other) ? ['Other ded.', money(num(r.other), true)] : null, ['Net', money(n, true)], ['VAT', money(num(r.vat), true)], ['Due', money(due, true)], ['Paid', money(num(r.paid), true)], ['Balance', money(Math.max(0, bal), true), bal > 1 ? 'owe' : 'clear']], label ? 'ipcref' : ''); };
   // ---------- payments against invoices and IPCs ----------
   const invPaid = v => Array.isArray(v.pays) && v.pays.length ? sum(v.pays, p => p.amount) : num(v.paidAmount);
   const ipcDue = r => ipcNet(r) + num(r.vat);
@@ -1767,7 +1774,7 @@ window.Dash = (() => {
         ${ipc ? line(`Certified net of ${esc(normIpc(v.ipc))}`, money(num(ipc.statedNet) || ipcNet(ipc), true), Math.abs((num(ipc.statedNet) || ipcNet(ipc)) - num(v.amount)) > 1 ? 'err' : '') : ''}
         ${line('Due date', v.due ? fmtD(v.due) : '—')}${line('TRN', esc(v.trn || '—'))}</tbody></table>${v.status === 'Rejected' ? '<p class="cap">Rejected: no payment due.</p>' : payBox('inv', v.id || v.no, num(v.total), invPaid(v), v.pays)}`;
       const tone = { Received: 'info', Approved: 'warn', 'Part paid': 'warn', Paid: 'good', Rejected: 'bad' }[v.status] || '';
-      return `<details class="trail" data-ed="inv-${esc(v.id || v.no)}"${openEd.has('inv-' + (v.id || v.no)) ? ' open' : ''}><summary><b>${esc(v.no || 'No number')}</b><span class="cap">${fmtD(v.date)}</span><span class="mtitle">${esc(v.contractor || '—')}</span><span class="tag">${esc(v.category)}${v.ipc && v.category === 'Main contractor IPC' ? ' · ' + esc(normIpc(v.ipc)) : ''}</span><b class="r">${money(num(v.total), true)}</b>${v.status === 'Part paid' ? `<small class="cap">paid ${money(invPaid(v), true)}</small>` : ''}${badge}<span class="tag ${tone}">${esc(v.status)}</span></summary>
+      return `<details class="trail" data-ed="inv-${esc(v.id || v.no)}"${openEd.has('inv-' + (v.id || v.no)) ? ' open' : ''}><summary><b>${esc(v.no || 'No number')}</b><span class="cap">${fmtD(v.date)}</span><span class="mtitle">${esc(v.contractor || '—')}</span><span class="tag">${esc(v.category)}${v.ipc && v.category === 'Main contractor IPC' ? ' · ' + esc(normIpc(v.ipc)) : ''}</span>${(() => { const ip = v.category === 'Main contractor IPC' && normIpc(v.ipc) ? D.ipcs.find(x => normIpc(x.no) === normIpc(v.ipc)) : null; return vstrip([['Amount', money(num(v.amount), true)], ['VAT', money(num(v.vat), true)], ['Total', money(num(v.total), true)], ['Paid', money(invPaid(v), true)], ['Balance', money(Math.max(0, num(v.total) - invPaid(v)), true), num(v.total) - invPaid(v) > 1 && v.status !== 'Rejected' ? 'owe' : 'clear']]) + (ip ? ipcStrip(ip, true) : ''); })()}${badge}<span class="tag ${tone}">${esc(v.status)}</span></summary>
         <div class="mbody"><div class="ipcgrid"><div>${brk}</div><div><h4 class="ck">Calculation checks</h4>${checkList(cs)}</div></div>
         <div class="acts mfoot">${v.file ? `<span class="cap">${esc(v.file)}</span><button type="button" class="btn sm" data-act="sub-open" data-id="${esc(v.fileId)}">Open file</button>` : '<span class="cap">No file stored</span>'}<button type="button" class="btn sm" data-act="inv-del" data-id="${esc(v.id || v.no)}">${invDelArm === (v.id || v.no) ? 'Confirm delete' : 'Delete'}</button></div></div></details>`;
     }).join('');
