@@ -245,6 +245,12 @@ table.mintbl td:first-child{font-weight:700;white-space:nowrap}table.mintbl td:n
 .trail .checks li{display:block!important;padding:6px 10px 6px 28px!important;grid-template-columns:none!important}
 .trail .checks li::before{width:auto!important;height:auto!important;border:0!important;background:none!important;border-radius:0!important;left:9px!important;top:6px!important}
 .minutes header{display:block!important}.minutes .mh-kicker{display:block}
+.paybox{margin-top:12px;padding:12px;border:1px dashed var(--line);border-radius:8px}.paysum{font-size:15px;margin-bottom:6px}.oktxt{color:var(--good);font-weight:700}
+.payrow{display:flex;flex-wrap:wrap;gap:8px;align-items:center}.payrow input{font:inherit;font-size:16px;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:6px;min-height:42px;padding:4px 8px;width:150px}
+.payhist{list-style:none;padding:0;margin:4px 0 8px;font-size:14px}.payhist li{padding:2px 0;max-width:none;margin:0;display:block!important}.payhist li::before{display:none!important;content:none!important}
+.linkbtn{background:none;border:0;color:var(--link);text-decoration:underline;cursor:pointer;font:inherit;font-size:13px;padding:0 4px}
+.statusbar{position:sticky;top:76px;z-index:3;margin:0 0 12px;padding:10px 14px;border-radius:8px;background:var(--th);border-left:4px solid var(--hv);font-size:14.5px}
+@media(max-width:900px){.statusbar{top:0}}
 
 </style>
 <script>new MutationObserver(()=>{for(const c of document.querySelectorAll('.stack td:not([data-l])')){let i=0,p=c;while(p=p.previousElementSibling)i+=p.colSpan;c.dataset.l=c.closest('table').rows[0].cells[i]?.textContent||''}}).observe(document,{childList:true,subtree:true})</script>
@@ -594,7 +600,33 @@ window.Mom = (() => {
     return r;
   }
 
-  return { parseIpc, extractText, parse, putFile, getFile, delFile, parseDate, compact, openStored, gunzip, usage, parseWbs, parseProgress, parseTender, parseBoq, wbsMatch };
+  // ---------- contractor tax invoice ----------
+  function parseInvoice(text) {
+    const lines = docLines(text), flat = String(text).replace(/\s+/g, ' ');
+    const amt = l => { const ms = [...l.replace(DATE_RX, ' ').matchAll(/[\d][\d,]*(?:\.\d+)?/g)].map(m => m[0]).filter(x => x.replace(/\D/g, '').length >= 3); if (!ms.length) return null; const v = parseFloat(ms[ms.length - 1].replace(/,/g, '')); return isFinite(v) ? v : null; };
+    const find = (rx, not) => { for (const l of lines) if (rx.test(l) && !(not && not.test(l))) { const v = amt(l); if (v !== null) return v; } return null; };
+    const field = rx => { for (const l of lines) { const m = l.match(rx); if (m) return m[1].trim().replace(/[.,;]$/, ''); } return ''; };
+    const dateOf = rx => { for (const l of lines) if (rx.test(l)) { const d = parseDate(l); if (d) return d; } return ''; };
+    const noM = flat.match(/(?:tax\s+)?invoice\s*(?:no\.?|number|#|ref\.?)\s*[:\-]?\s*([A-Z0-9][A-Z0-9\-\/]{0,24})/i);
+    const ipcM = flat.match(/(?:IPC|interim payment certificate|payment certificate|payment application)\s*(?:no\.?|number|#)?\s*[:\-]?\s*(\d{1,4})\b/i);
+    const rateM = flat.match(/VAT\s*(?:@|at)?\s*(\d{1,2}(?:\.\d+)?)\s*%/i);
+    let contractor = field(/^(?:from|supplier|seller|contractor|issued by|vendor)\s*[:\-]\s*(.{3,80})$/i);
+    if (!contractor) contractor = (lines.slice(0, 8).find(l => /\b(LLC|L\.L\.C\.?|Ltd\.?|Limited|Co\.|Company|Contracting|Contractors|Est\.|Establishment|FZE|FZCO|Department|Authority|Municipality)(?![A-Za-z])/i.test(l) && !/\b(to|bill to|client|customer)\s*[:\-]/i.test(l)) || '').slice(0, 80);
+    return {
+      no: noM ? noM[1].toUpperCase() : '',
+      date: dateOf(/(?:invoice date|date of issue|date of supply|tax date|^date)\b/i) || reportDate(lines),
+      due: dateOf(/(?:due date|payment due|payable by)/i),
+      contractor,
+      trn: (flat.match(/\bTRN\s*(?:no\.?|number)?\s*[:\-]?\s*(\d[\d\s-]{13,20}\d)/i) || [])[1]?.replace(/\D/g, '') || '',
+      ipc: ipcM ? 'IPC-' + ipcM[1].padStart(2, '0') : '',
+      amount: find(/(?:taxable (?:amount|value|supply)|amount (?:excluding|excl\.?|before|exclusive of) vat|sub-?total|net amount|value of supply|amount before tax)/i, /including|inclusive|incl\.? vat|total amount due/i),
+      vatRate: rateM ? +rateM[1] : null,
+      vat: find(/\bVAT\b|value added tax|tax amount/i, /excluding|excl\.?|before|exclusive|including|inclusive|incl|total|taxable|TRN|registration/i),
+      total: find(/(?:total (?:amount )?(?:including|incl\.?|inc\.?|inclusive of) vat|total amount (?:due|payable)|invoice total|grand total|total payable|total due|amount payable)/i),
+    };
+  }
+
+  return { parseInvoice, parseIpc, extractText, parse, putFile, getFile, delFile, parseDate, compact, openStored, gunzip, usage, parseWbs, parseProgress, parseTender, parseBoq, wbsMatch };
 })();
 
 // Project dashboard: schedule and progress (WBS baseline + progress log), milestones, interfaces,
@@ -603,7 +635,8 @@ window.Mom = (() => {
 window.Dash = (() => {
   const KEY = 'cmg-dashboard-v2';
   const STEPS = [10, 25, 40, 50, 75, 85, 100];
-  const PAY_CATS = ['Advance payment', 'Design fees', 'PM / supervision fees', 'Authority fees', 'Utility charges', 'Testing and inspection', 'Owner direct purchase', 'Retention release', 'Insurance and bonds', 'Other'];
+  const INV_CATS = ['Main contractor IPC', 'Subcontractor', 'Authority fees', 'Utility charges', 'Design fees', 'PM / supervision fees', 'Testing and inspection', 'Owner direct purchase', 'Insurance and bonds', 'Other'];
+  const PAY_CATS = ['Advance payment', 'Subcontractor payment', 'Design fees', 'PM / supervision fees', 'Authority fees', 'Utility charges', 'Testing and inspection', 'Owner direct purchase', 'Retention release', 'Insurance and bonds', 'Other'];
 
   function sample() {
     const ipcs = [];
@@ -612,8 +645,8 @@ window.Dash = (() => {
     cert.forEach((c, i) => {
       const m = String(i + 2).padStart(2, '0'), ret = c * 0.05, adv = c * 0.10, net = c - ret - adv;
       cum += c;
-      ipcs.push({ no: 'IPC-' + String(i + 1).padStart(2, '0'), period: '2026-' + m, applied: Math.round(c * 1.08), certified: c, retention: ret, advance: adv, other: 0, vat: 0, statedNet: net, cumGross: cum,
-        paid: i === 8 ? 0 : i === 7 ? Math.round(net * 0.5) : net, paidDate: i === 8 ? '' : `2026-${String(i + 3).padStart(2, '0')}-20` });
+      ipcs.push({ no: 'IPC-' + String(i + 1).padStart(2, '0'), period: '2026-' + m, applied: Math.round(c * 1.08), certified: c, retention: ret, advance: adv, other: 0, vat: Math.round(net * 0.05), statedNet: net, cumGross: cum,
+        paid: i === 8 ? 0 : i === 7 ? 0 : Math.round(net * 1.05), paidDate: i === 8 ? '' : `2026-${String(i + 3).padStart(2, '0')}-20` });
     });
     return {
       project: { name: 'Sample project: 6-storey office building', currency: 'AED', contract: 48000000, retention: 5, dataDate: '2026-10-31', employer: 'Sample Properties LLC', contractor: 'Sample Contracting LLC', commencement: '2026-01-05', completion: '2027-06-15', advance: 10, ldRate: 25000, ldPer: 'day', ldCap: 10, dlpMonths: 12, wCost: 50, wTime: 30, wCx: 20 },
@@ -673,6 +706,12 @@ window.Dash = (() => {
       ],
       ipcs,
       boq: [['Preliminaries', 3600000, '1.0'], ['Substructure', 7200000, '2.0'], ['Concrete frame', 11500000, '3.0'], ['Facade and glazing', 8400000, '4.0'], ['Mechanical and electrical services', 9800000, '5.0'], ['Finishes', 5500000, '6.0'], ['External works', 2000000, '7.0']].map(([name, amount, wbs]) => ({ name, amount, wbs })),
+      invoices: [
+        { date: '2026-09-05', no: 'SC-INV-2026-071', contractor: 'Sample Contracting LLC', category: 'Main contractor IPC', ipc: 'IPC-07', amount: 2380000, vatRate: 5, vat: 119000, total: 2499000, due: '2026-10-05', trn: '100234567890003', status: 'Paid', paidAmount: 2499000, paidDate: '2026-09-20', pays: [{ date: '2026-09-20', amount: 2499000 }] },
+        { date: '2026-10-06', no: 'SC-INV-2026-080', contractor: 'Sample Contracting LLC', category: 'Main contractor IPC', ipc: 'IPC-08', amount: 2295000, vatRate: 5, vat: 114750, total: 2409750, due: '2026-11-05', trn: '100234567890003', status: 'Approved' },
+        { date: '2026-11-05', no: 'SC-INV-2026-085', contractor: 'Sample Contracting LLC', category: 'Main contractor IPC', ipc: 'IPC-09', amount: 2550000, vatRate: 5, vat: 127500, total: 2677500, due: '2026-12-05', trn: '100234567890003', status: 'Received' },
+        { date: '2026-09-12', no: 'LAB-114', contractor: 'Third-party laboratory', category: 'Testing and inspection', ipc: '', amount: 80952.38, vatRate: 5, vat: 4047.62, total: 85000, due: '', trn: '100987654321003', status: 'Paid', paidAmount: 85000, paidDate: '2026-09-12', pays: [{ date: '2026-09-12', amount: 85000 }] },
+      ],
       subs: [
         { name: 'Foundation Specialists LLC', scope: 'Bored piling and pile caps', wbs: '2.0', type: 'Remeasured', value: 6400000, variations: 380000, paid: 6450000, retention: 5, start: '2026-01-15', finish: '2026-05-10', ldRate: 5000, status: 'Completed' },
         { name: 'Glass and Aluminium Co.', scope: 'Curtain wall, glazing and louvres', wbs: '4.0', type: 'Supply and install', value: 7100000, variations: 120000, paid: 1650000, retention: 10, start: '2026-07-01', finish: '2027-02-15', ldRate: 8000, status: 'Active' },
@@ -732,13 +771,14 @@ window.Dash = (() => {
     risks: { title: 'Risk register', cols: [['id', 'ID'], ['title', 'Risk'], ['l', 'Likelihood 1-5', 'n'], ['i', 'Impact 1-5', 'n'], ['owner', 'Owner'], ['status', 'Status', 's', ['Open', 'Watch', 'Closed']]] },
     pcos: { title: 'PCOs and change orders', cols: [['no', 'PCO No.'], ['desc', 'Description'], ['value', 'Value', 'n'], ['days', 'Time (days)', 'n'], ['status', 'Status', 's', ['Potential', 'Submitted', 'Approved', 'Rejected']], ['co', 'CO No.'], ['source', 'Source']] },
     boq: { title: 'BOQ summary', note: 'Bills or sections of the priced BOQ and the WBS element each one funds.', cols: [['name', 'Bill / section'], ['amount', 'Amount', 'n'], ['wbs', 'WBS code', 'w']] },
+    invoices: { title: 'Invoices and payment documents', note: 'Every tax invoice, receipt or payment document, one row each. Contractor IPC invoices are matched to their IPC; the others are also listed in Other project payments.', cols: [['date', 'Date', 'd'], ['no', 'Invoice No.'], ['contractor', 'Contractor / payee'], ['category', 'Category', 's', INV_CATS], ['ipc', 'IPC ref.'], ['amount', 'Amount excl. VAT', 'n'], ['vatRate', 'VAT %', 'n'], ['vat', 'VAT', 'n'], ['total', 'Total incl. VAT', 'n'], ['due', 'Due date', 'd'], ['trn', 'TRN'], ['status', 'Status', 's', ['Received', 'Approved', 'Part paid', 'Paid', 'Rejected']], ['paidAmount', 'Paid amount', 'n'], ['paidDate', 'Paid date', 'd']] },
     subs: { title: 'Subcontractor agreements', note: 'One row per subcontract or supply agreement. Current value = agreement value + approved variations.', cols: [['name', 'Subcontractor'], ['scope', 'Scope / package'], ['wbs', 'WBS', 'w'], ['type', 'Contract type', 's', ['Lump sum', 'Remeasured', 'Unit rate', 'Cost plus', 'Labour only', 'Supply only', 'Supply and install']], ['value', 'Agreement value', 'n'], ['variations', 'Approved variations', 'n'], ['paid', 'Paid to date', 'n'], ['retention', 'Retention %', 'n'], ['start', 'Start', 'd'], ['finish', 'Finish', 'd'], ['ldRate', 'LD rate per day', 'n'], ['status', 'Status', 's', ['Draft', 'Signed', 'Active', 'Completed', 'Terminated']]] },
     manpower: { title: 'Manpower log', note: 'Headcount on site by trade for each day or week. Planned headcount is optional and draws the planned line.', cols: [['date', 'Date', 'd'], ['trade', 'Trade / category'], ['company', 'Company'], ['count', 'Headcount', 'n'], ['planned', 'Planned headcount', 'n']] },
     plant: { title: 'Plant and equipment log', note: 'Hours for each item of plant per day or week.', cols: [['date', 'Date', 'd'], ['equipment', 'Equipment'], ['qty', 'Quantity', 'n'], ['working', 'Working hours', 'n'], ['idle', 'Idle hours', 'n'], ['breakdown', 'Breakdown hours', 'n'], ['remarks', 'Remarks']] },
     log: { title: 'Project log', note: 'Decisions, actions, critical issues and variations. Added automatically from uploaded minutes of meeting, or entered by hand. Items linked to a WBS element appear on the programme chart.', cols: [['date', 'Date', 'd'], ['mom', 'Source (meeting)'], ['type', 'Type', 's', ['Decision', 'Action', 'Variation', 'Critical issue', 'Note']], ['critical', 'Critical', 's', ['No', 'Yes']], ['text', 'Item'], ['owner', 'Owner'], ['due', 'Due', 'd'], ['wbs', 'WBS', 'w'], ['status', 'Status', 's', ['Open', 'Closed']]] },
   };
   const TABS = [['overview', 'Overview'], ['schedule', 'Schedule & progress'], ['meetings', 'Meetings & decisions'], ['resources', 'Manpower & plant'], ['payments', 'Payments'], ['interfaces', 'Interfaces'], ['risks', 'Risks & changes'], ['contract', 'Contract & BOQ'], ['settings', 'Settings']];
-  const TAB_TABLES = { schedule: ['wbs', 'progress', 'milestones', 'costs'], meetings: ['log'], resources: ['manpower', 'plant'], contract: ['boq', 'subs'], payments: ['ipcs', 'payments'], interfaces: ['interfaces'], risks: ['risks', 'pcos'], overview: [], settings: [] };
+  const TAB_TABLES = { schedule: ['wbs', 'progress', 'milestones', 'costs'], meetings: ['log'], resources: ['manpower', 'plant'], contract: ['boq', 'subs'], payments: ['ipcs', 'invoices', 'payments'], interfaces: ['interfaces'], risks: ['risks', 'pcos'], overview: [], settings: [] };
 
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const num = v => { const n = parseFloat(String(v ?? '').replace(/,/g, '')); return isFinite(n) ? n : 0; };
@@ -783,7 +823,7 @@ window.Dash = (() => {
     } catch (e) { savedAt = 'Not saved: browser storage is full or blocked. Export your data.'; return false; }
   }
   function switchTo(id) { const ix = index(); ix.current = id; writeIndex(ix); D = load(); syncContract(); pending = null; queue = []; savedAt = ''; render(); }
-  const blank = (name, currency) => normalize({ project: { name: name || 'New project', currency: currency || 'AED', contract: 0, retention: 5, dataDate: new Date().toISOString().slice(0, 10) }, wbs: [], progress: [], costs: [], milestones: [], interfaces: [], risks: [], pcos: [], ipcs: [], payments: [], log: [], meetings: [], manpower: [], plant: [], boq: [], subs: [] });
+  const blank = (name, currency) => normalize({ project: { name: name || 'New project', currency: currency || 'AED', contract: 0, retention: 5, dataDate: new Date().toISOString().slice(0, 10) }, wbs: [], progress: [], costs: [], milestones: [], interfaces: [], risks: [], pcos: [], ipcs: [], payments: [], log: [], meetings: [], manpower: [], plant: [], boq: [], subs: [], invoices: [] });
   const cur = () => D.project.currency || '';
   function money(n, full) {
     const a = Math.abs(n), sg = n < 0 ? '−' : '';
@@ -865,7 +905,7 @@ window.Dash = (() => {
     const appr = D.pcos.filter(p => p.status === 'Approved'), pend = D.pcos.filter(p => ['Potential', 'Submitted'].includes(p.status));
     const coVal = sum(appr, p => p.value), coDays = sum(appr, p => p.days), contract = num(D.project.contract);
     const ms = D.milestones.map(m => msStatus(m)[0]);
-    const cert = sum(D.ipcs, r => r.certified), net = sum(D.ipcs, ipcNet), ipcPaid = sum(D.ipcs, r => r.paid);
+    const cert = sum(D.ipcs, r => r.certified), net = sum(D.ipcs, r => ipcNet(r) + num(r.vat)), ipcPaid = sum(D.ipcs, r => r.paid);
     const retHeld = sum(D.ipcs, r => r.retention) - sum(D.payments.filter(p => p.category === 'Retention release' && p.status === 'Paid'), p => p.amount);
     const advPaid = sum(D.payments.filter(p => p.category === 'Advance payment' && p.status === 'Paid'), p => p.amount), advRec = sum(D.ipcs, r => r.advance);
     const otherPaid = sum(D.payments.filter(p => p.status === 'Paid'), p => p.amount), otherPend = sum(D.payments.filter(p => p.status === 'Pending'), p => p.amount);
@@ -1071,33 +1111,40 @@ window.Dash = (() => {
   function vPayments() {
     const m = metrics(), c = esc(cur());
     const chk = allIpcChecks(), nBad = [...chk.values()].reduce((a, cs) => a + cs.filter(c => c.lvl === 'bad').length, 0), nWarn = [...chk.values()].reduce((a, cs) => a + cs.filter(c => c.lvl === 'warn').length, 0);
-    const ipcRows = sortedIpcs().map(r => { const n = ipcNet(r), o = n - num(r.paid), st = num(r.paid) >= n - 1 ? ['Paid', 'good'] : num(r.paid) > 0 ? ['Part paid', 'warn'] : ['Unpaid', 'bad'], cs = chk.get(r) || [];
-      return `<tr class="${cs.some(c => c.lvl === 'bad') ? 'err' : cs.length ? 'wrn' : ''}"><td>${esc(r.no)}${r.file ? `<br><button type="button" class="btn xs" data-act="sub-open" data-id="${esc(r.fileId)}">Open</button>` : ''}</td><td>${esc(r.period)}</td><td class="r">${money(num(r.certified), true)}</td><td class="r">${money(num(r.retention), true)}</td><td class="r">${money(num(r.advance), true)}</td><td class="r">${money(n, true)}</td><td class="r">${money(num(r.paid), true)}</td><td class="r">${money(o, true)}</td><td><span class="tag ${st[1]}">${st[0]}</span></td><td>${cs.length ? cs.map(c => `<span class="tag ${c.lvl}" title="${esc(c.m)}">${c.lvl === 'bad' ? 'Error' : 'Check'}</span>`).join(' ') : '<span class="tag good">✓</span>'}</td></tr>`; });
-    ipcRows.push(`<tr class="tot"><td>Total</td><td></td><td class="r">${money(m.cert, true)}</td><td class="r">${money(sum(D.ipcs, r => r.retention), true)}</td><td class="r">${money(m.advRec, true)}</td><td class="r">${money(m.net, true)}</td><td class="r">${money(m.ipcPaid, true)}</td><td class="r">${money(m.ipcOut, true)}</td><td></td><td></td></tr>`);
+    const ipcRows = sortedIpcs().map(r => { const n = ipcNet(r), o = n + num(r.vat) - num(r.paid), st = num(r.paid) >= n + num(r.vat) - 1 ? ['Paid', 'good'] : num(r.paid) > 0 ? ['Part paid', 'warn'] : ['Unpaid', 'bad'], cs = chk.get(r) || [];
+      return `<tr class="${cs.some(c => c.lvl === 'bad') ? 'err' : cs.length ? 'wrn' : ''}"><td>${esc(r.no)}${r.file ? `<br><button type="button" class="btn xs" data-act="sub-open" data-id="${esc(r.fileId)}">Open</button>` : ''}</td><td>${esc(r.period)}</td><td class="r">${money(num(r.certified), true)}</td><td class="r">${money(num(r.retention), true)}</td><td class="r">${money(num(r.advance), true)}</td><td class="r">${money(n, true)}</td><td class="r">${money(num(r.paid), true)}</td><td class="r">${money(o, true)}</td><td><span class="tag ${st[1]}">${st[0]}</span></td><td>${cs.length ? cs.map(c => `<span class="tag ${c.lvl}" title="${esc(c.m)}">${c.lvl === 'bad' ? 'Error' : 'Check'}</span>`).join(' ') : '<span class="tag good">✓</span>'}</td><td><button type="button" class="btn xs" data-act="ipc-del" data-id="${esc(r.no)}">${ipcDelArm === r.no ? 'Confirm' : 'Delete'}</button></td></tr>`; });
+    ipcRows.push(`<tr class="tot"><td>Total</td><td></td><td class="r">${money(m.cert, true)}</td><td class="r">${money(sum(D.ipcs, r => r.retention), true)}</td><td class="r">${money(m.advRec, true)}</td><td class="r">${money(sum(D.ipcs, ipcNet), true)}</td><td class="r">${money(m.ipcPaid, true)}</td><td class="r">${money(m.ipcOut, true)}</td><td></td><td></td><td></td></tr>`);
     const payRows = [...D.payments].sort((a, b) => dt(b.date) - dt(a.date)).map(p => `<tr><td>${fmtD(p.date)}</td><td>${esc(p.category)}</td><td>${esc(p.payee)}</td><td>${esc(p.ref)}</td><td class="r">${money(num(p.amount), true)}</td><td><span class="tag ${p.status === 'Paid' ? 'good' : 'warn'}">${esc(p.status)}</span></td></tr>`);
     return `<div class="kpis">
       ${kpi('IPC calculation checks', nBad ? `${nBad} error${nBad > 1 ? 's' : ''}` : 'All correct', nBad || nWarn ? `${nWarn} to check · see the list below` : `${D.ipcs.length} certificates re-calculated`, nBad ? 'bad' : nWarn ? 'warn' : 'good')}
+      ${(() => { const ne = D.invoices.filter(v => invChecks(v).some(x => x.lvl === 'bad')).length; return kpi('Tax invoices', String(D.invoices.length), ne ? `${ne} with calculation errors` : `${D.invoices.filter(v => v.status !== 'Paid' && v.status !== 'Rejected').length} unpaid · all calculations correct`, ne ? 'bad' : 'good'); })()}
       ${kpi(`IPCs certified (${c})`, money(m.cert), `${D.ipcs.length} certificates, gross`)}
-      ${kpi(`IPCs paid (${c})`, money(m.ipcPaid), `of ${money(m.net)} net payable`)}
+      ${kpi(`IPCs paid (${c})`, money(m.ipcPaid), `of ${money(m.net)} due incl. VAT`)}
       ${kpi(`IPC outstanding (${c})`, money(m.ipcOut), 'certified but not yet paid', m.ipcOut > 0 ? 'warn' : 'good')}
       ${kpi(`Retention held (${c})`, money(m.retHeld), `${num(D.project.retention)}% retention`)}
       ${kpi(`Advance balance (${c})`, money(m.advPaid - m.advRec), `paid ${money(m.advPaid)} · recovered ${money(m.advRec)}`)}
       ${kpi(`Other payments (${c})`, money(m.otherPaid), `${money(m.otherPend)} pending`, m.otherPend ? 'warn' : '')}
       ${kpi(`Total project spend (${c})`, money(m.spend), 'IPCs paid + other payments paid')}
     </div>
+    <p class="statusbar momst" data-msg="doc" role="status"${docBusy ? '' : ' hidden'}>${esc(docBusy)}</p>
     <section class="card upl"><h3>Upload an interim payment certificate</h3>
       <p class="cap">Drop all your IPCs at once (PDF or photos). Each is read in your browser and added straight to the register in period order; every calculation is re-checked (gross this period, retention, advance recovery, net, VAT and the running totals) and any error is highlighted. Certificates already recorded are skipped; a revised version of one updates it.</p>
       <label class="drop" data-drop-kind="ipc"><input type="file" accept=".pdf,image/*,.txt" data-act="ipc-file" multiple hidden><b>Drop IPCs here</b><span>or click to choose files (several at once)</span></label>
       <div class="acts"><button type="button" class="btn sm" data-act="ipc-new">Add IPC manually</button></div>
       <label class="inl"><input type="checkbox" data-ipcreview${D.project.ipcReview ? ' checked' : ''}> Review each certificate before it is added (otherwise IPCs are added automatically)</label>
-      <details class="paste"><summary>Or paste the certificate text</summary><textarea data-doc-text rows="6" placeholder="Paste the IPC here"></textarea><button type="button" class="btn sm" data-act="doc-paste-ipc">Add from text</button></details>
-      <p class="cap momst" data-msg="doc" role="status">${esc(docBusy)}</p></section>
+      <details class="paste"><summary>Or paste the certificate text</summary><textarea data-doc-text rows="6" placeholder="Paste the IPC here"></textarea><button type="button" class="btn sm" data-act="doc-paste-ipc">Add from text</button></details></section>
     ${docPend && docPend.kind === 'ipc' ? docReview() : ''}
+    <section class="card upl"><h3>Upload tax invoices and other payment documents</h3>
+      <p class="cap">Drop contractor tax invoices, subcontractor invoices, authority and utility fees, consultant invoices and receipts, as many as you like. Each is read, classified, checked on its own and added to the invoices log; everything that is not a contractor IPC invoice is also added to Other project payments. Documents already recorded are skipped.</p>
+      <label class="drop" data-drop-kind="inv"><input type="file" accept=".pdf,image/*,.txt" data-act="inv-file" multiple hidden><b>Drop invoices and payment documents here</b><span>or click to choose files (several at once)</span></label>
+      <div class="acts"><button type="button" class="btn sm" data-act="inv-new">Add an invoice manually</button></div>
+      <details class="paste"><summary>Or paste the invoice text</summary><textarea data-inv-text rows="6" placeholder="Paste the invoice here"></textarea><button type="button" class="btn sm" data-act="inv-paste">Add from text</button></details></section>
     <div class="dgrid">
       ${card('IPCs by period', `Certified (gross), net payable and paid (${c}).`, legend([['ap', 'Certified'], ['ce', 'Net payable'], ['pa', 'Paid']]) + fig('ipc'), 1)}
       ${card('Cumulative cash flow', `IPC net payable vs paid, plus other project payments (${c}).`, legend([['ev', 'IPC net payable'], ['ok2', 'IPC paid'], ['ac', 'All project payments paid']]) + fig('cash'), 1)}
-      ${card('IPC register', '', tbl(['IPC', 'Period', 'Certified', 'Retention', 'Advance rec.', 'Net', 'Paid', 'Outstanding', 'Status', 'Checks'], ipcRows, [2, 3, 4, 5, 6, 7]), 1)}
+      ${card('IPC register', '', tbl(['IPC', 'Period', 'Certified', 'Retention', 'Advance rec.', 'Net', 'Paid', 'Outstanding', 'Status', 'Checks', ''], ipcRows, [2, 3, 4, 5, 6, 7]), 1)}
             ${ipcsCard()}
+      ${invoicesCard()}
       ${card('Other payments by category', `Paid and pending (${c}).`, catBars())}
       ${card('Other project payments', '', tbl(['Date', 'Category', 'Payee', 'Ref.', 'Amount', 'Status'], payRows, [4]), 1)}
     </div>`;
@@ -1418,7 +1465,7 @@ window.Dash = (() => {
       <div class="acts"><button type="button" class="btn sm primary" data-act="doc-apply">Log as current progress</button><button type="button" class="btn sm" data-act="doc-discard">Discard</button></div>
       <details class="xt"><summary>Show the extracted text</summary><pre>${esc(p.text.slice(0, 20000))}</pre></details></section>`;
   }
-  function setDocMsg() { const m = root && root.querySelector('[data-msg="doc"]'); if (m) m.textContent = docBusy; }
+  function setDocMsg() { const m = root && root.querySelector('[data-msg="doc"]'); if (m) { m.textContent = docBusy; m.hidden = !docBusy; } }
   const IPC_FIELDS = [['no', 'IPC No.'], ['period', 'Period (YYYY-MM)'], ['cumGross', 'Gross value to date'], ['previous', 'Previously certified'], ['gross', 'Gross this period'], ['retention', 'Retention this period'], ['advance', 'Advance recovery'], ['other', 'Other deductions'], ['net', 'Net amount due'], ['vat', 'VAT'], ['total', 'Total for payment'], ['applied', 'Applied by contractor'], ['paid', 'Paid'], ['paidDate', 'Paid date']];
   const nextIpcNo = () => { const n = Math.max(0, ...D.ipcs.map(x => parseInt(String(x.no).replace(/\D+/g, ''), 10) || 0)) + 1; return 'IPC-' + String(n).padStart(2, '0'); };
   function ipcFields(text) {
@@ -1482,7 +1529,7 @@ window.Dash = (() => {
         ${num(r.vat) ? line('VAT', money(num(r.vat), true)) + line('Amount due', money(due, true)) : ''}
         ${line('Paid' + (r.paidDate ? ' on ' + fmtD(r.paidDate) : ''), money(num(r.paid), true))}${line('Outstanding', money(due - num(r.paid), true))}</tbody></table>`;
       return `<details class="trail" data-ed="ipc-${esc(r.no)}"${openEd.has('ipc-' + r.no) ? ' open' : ''}><summary><b>${esc(r.no)}</b><span class="cap">${esc(r.period)}</span><span class="mtitle">Net ${money(n, true)}</span>${badge}<small class="cap">paid ${money(num(r.paid), true)}</small></summary>
-        <div class="mbody"><div class="ipcgrid">${breakdown}<div><h4 class="ck">Calculation checks</h4>${checkList(cs)}</div></div>
+        <div class="mbody"><div class="ipcgrid"><div>${breakdown}${payBox('ipc', r.no, due, num(r.paid), r.pays)}</div><div><h4 class="ck">Calculation checks</h4>${checkList(cs)}</div></div>
         <div class="acts mfoot">${r.file ? `<span class="cap">${esc(r.file)}</span><button type="button" class="btn sm" data-act="sub-open" data-id="${esc(r.fileId)}">Open file</button>` : '<span class="cap">No file stored</span>'}<button type="button" class="btn sm" data-act="ipc-del" data-id="${esc(r.no)}">${ipcDelArm === r.no ? 'Confirm delete' : 'Delete IPC'}</button></div></div></details>`;
     }).join('');
     return `<details class="card span2 trailbox" data-ed="ipcs"${openEd.has('ipcs') ? ' open' : ''}><summary><h3>IPCs recorded</h3><span class="cap">${list.length} certificate${list.length === 1 ? '' : 's'}${list.length ? ' · latest ' + esc(list[0].no) + ', ' + esc(list[0].period) : ''}${withErr ? ` · <b class="errtxt">${withErr} with calculation errors</b>` : ''}</span></summary>
@@ -1578,6 +1625,155 @@ window.Dash = (() => {
       <p class="cap">C = cost (budget), T = duration in days from the baseline, K = complexity of scope from 1 (simple) to 5 (very complex), so K·T measures complexity-days. Overall progress = Σ W<sub>i</sub> × % complete<sub>i</sub>. Set the factors to match how your organisation weighs work:</p>
       <div class="pform wf"><label>α cost factor<input data-p="wCost" inputmode="decimal" value="${a}"></label><label>β duration factor<input data-p="wTime" inputmode="decimal" value="${b}"></label><label>γ complexity factor<input data-p="wCx" inputmode="decimal" value="${g}"></label></div>
       ${tbl(['Code', 'Element', 'Cost (share)', 'Days (share)', 'Complexity K', 'K·T share', 'Weight W', 'Actual %', 'W × actual'], tr, [2, 3, 4, 5, 6, 7, 8])}`, 1);
+  }
+
+  // ---------- tax invoices and payment documents ----------
+  const normIpc = x => { const n = parseInt(String(x || '').replace(/\D+/g, ''), 10); return n ? 'IPC-' + String(n).padStart(2, '0') : ''; };
+  const subOf = name => { const t = String(name || '').toLowerCase().replace(/[^a-z0-9 ]/g, ' ').split(/\s+/).filter(w => w.length > 3 && !['llc', 'company', 'contracting', 'services', 'limited'].includes(w)); return D.subs.find(r => { const n = String(r.name).toLowerCase(); return t.length && t.filter(w => n.includes(w)).length >= Math.min(2, t.length); }); };
+  function invCategory(inv, text) {
+    const T = (inv.contractor + ' ' + text).toLowerCase();
+    if (subOf(inv.contractor)) return 'Subcontractor';
+    if (inv.ipc || /interim payment certificate|payment certificate|\bipc\b|payment application/.test(T)) return 'Main contractor IPC';
+    if (/municipality|authority|civil defen[cs]e|permit|\bnoc\b|government|ministry|\brta\b|trakhees|development authority|approval fee/.test(T)) return 'Authority fees';
+    if (/electricity|water|dewa|sewa|addc|fewa|utility|connection charge|etisalat|\bdu\b/.test(T)) return 'Utility charges';
+    if (/supervision|project management|\bpmc\b/.test(T)) return 'PM / supervision fees';
+    if (/design|architect|consultan/.test(T)) return 'Design fees';
+    if (/laborator|testing|inspection/.test(T)) return 'Testing and inspection';
+    if (/insurance|bond|guarantee/.test(T)) return 'Insurance and bonds';
+    if (/furniture|ff&e|equipment supply|purchase order/.test(T)) return 'Owner direct purchase';
+    return 'Other';
+  }
+  const payCatOf = c => c === 'Subcontractor' ? 'Subcontractor payment' : PAY_CATS.includes(c) ? c : 'Other';
+  function invChecks(v) {
+    const out = [], bad = m => out.push({ lvl: 'bad', m }), warn = m => out.push({ lvl: 'warn', m });
+    const a = num(v.amount), vat = num(v.vat), tot = num(v.total), rate = v.vatRate === '' || v.vatRate === null || v.vatRate === undefined ? (vat ? null : 0) : num(v.vatRate);
+    if (a && rate !== null && rate !== 0) { const exp = a * rate / 100; if (Math.abs(exp - vat) > Math.max(1, exp * 0.0005)) bad(`VAT ${money(vat, true)} ≠ ${rate}% × ${money(a, true)} = ${money(exp, true)}`); }
+    if (a && vat && rate === null) { const r = vat / a * 100; if (Math.abs(r - Math.round(r)) > 0.05) warn(`VAT is ${r.toFixed(2)}% of the amount; check the VAT rate`); }
+    if (tot && a) { const exp = a + vat; if (Math.abs(exp - tot) > Math.max(1, exp * 0.0005)) bad(`Total ${money(tot, true)} ≠ amount ${money(a, true)} + VAT ${money(vat, true)} = ${money(exp, true)} (difference ${money(tot - exp, true)})`); }
+    if (vat && !String(v.trn || '').replace(/\D/g, '')) warn('No TRN shown: a tax invoice must show the supplier\'s tax registration number');
+    else if (v.trn && String(v.trn).replace(/\D/g, '').length !== 15) warn(`TRN ${v.trn} is not 15 digits`);
+    const dup = D.invoices.filter(x => x !== v && x.no && x.no === v.no && String(x.contractor).toLowerCase() === String(v.contractor).toLowerCase());
+    if (dup.length) bad(`Invoice number ${v.no} from ${v.contractor} is recorded more than once`);
+    if (v.category === 'Main contractor IPC') {
+      const ref = normIpc(v.ipc), ipc = ref && D.ipcs.find(x => normIpc(x.no) === ref);
+      if (!ref) warn('No IPC reference: the invoice cannot be matched to a certificate');
+      else if (!ipc) warn(`${ref} is not in the IPC register`);
+      else {
+        const net = num(ipc.statedNet) || ipcNet(ipc);
+        if (Math.abs(net - a) > Math.max(1, net * 0.0005)) bad(`Invoice amount ${money(a, true)} ≠ certified net of ${ref} ${money(net, true)} (difference ${money(a - net, true)})`);
+        if (num(ipc.vat) && Math.abs(num(ipc.vat) - vat) > 1) warn(`VAT ${money(vat, true)} differs from the VAT on ${ref} ${money(num(ipc.vat), true)}`);
+        const twice = D.invoices.filter(x => x !== v && x.category === 'Main contractor IPC' && normIpc(x.ipc) === ref && x.status !== 'Rejected');
+        if (twice.length) bad(`${ref} is also billed on invoice ${twice.map(x => x.no).join(', ')}`);
+      }
+    }
+    if (v.category === 'Subcontractor') {
+      const sc = subOf(v.contractor);
+      if (sc) { const cum = sum(D.invoices.filter(x => x.status !== 'Rejected' && subOf(x.contractor) === sc && dt(x.date) <= dt(v.date)), x => x.amount), cv = num(sc.value) + num(sc.variations); if (cum > cv + 1) bad(`Invoiced to date ${money(cum, true)} exceeds the subcontract value ${money(cv, true)} for ${sc.name}`); }
+      else warn('Subcontractor not found in the subcontract register');
+    }
+    return out;
+  }
+  let invDelArm = '';
+  // ---------- payments against invoices and IPCs ----------
+  const invPaid = v => Array.isArray(v.pays) && v.pays.length ? sum(v.pays, p => p.amount) : num(v.paidAmount);
+  const ipcDue = r => ipcNet(r) + num(r.vat);
+  function syncInvPayments(v) {
+    v.paidAmount = invPaid(v);
+    if (v.status !== 'Rejected') v.status = v.paidAmount >= num(v.total) - 1 && num(v.total) ? 'Paid' : v.paidAmount > 0 ? 'Part paid' : (v.status === 'Paid' || v.status === 'Part paid' ? 'Approved' : v.status);
+    v.paidDate = v.pays && v.pays.length ? v.pays[v.pays.length - 1].date : v.paidDate;
+    if (v.category === 'Main contractor IPC') {
+      const ref = normIpc(v.ipc), ipc = ref && D.ipcs.find(x => normIpc(x.no) === ref);
+      if (ipc) { const invs = D.invoices.filter(x => x.category === 'Main contractor IPC' && normIpc(x.ipc) === ref && x.status !== 'Rejected'); ipc.paid = sum(invs, invPaid); ipc.paidDate = invs.map(x => x.paidDate).filter(Boolean).sort().pop() || ipc.paidDate; }
+    } else if (v.id) {
+      D.payments = D.payments.filter(p => p.invId !== v.id);
+      const base = { category: payCatOf(v.category), payee: v.contractor, ref: v.no, invId: v.id };
+      for (const p of v.pays || []) D.payments.push({ ...base, date: p.date, amount: num(p.amount), status: 'Paid' });
+      const rest = num(v.total) - invPaid(v);
+      if (rest > 1 && v.status !== 'Rejected') D.payments.push({ ...base, date: v.date || D.project.dataDate, amount: rest, status: 'Pending' });
+    }
+  }
+  function payBox(kind, id, total, paid, pays) {
+    const bal = total - paid, key = esc(kind + ':' + id);
+    return `<div class="paybox"><div class="paysum"><b>Paid ${money(paid, true)}</b> of ${money(total, true)} · <span class="${bal > 1 ? 'errtxt' : 'oktxt'}">balance ${money(Math.max(0, bal), true)}</span></div>
+      ${(pays || []).length ? `<ul class="payhist">${pays.map((p, i) => `<li>${fmtD(p.date)}: ${money(num(p.amount), true)} <button type="button" class="linkbtn" data-act="pay-undo" data-key="${key}" data-i="${i}">remove</button></li>`).join('')}</ul>` : ''}
+      ${bal > 1 ? `<div class="payrow"><button type="button" class="btn sm primary" data-act="pay-full" data-key="${key}">Mark as fully paid</button>
+        <span class="cap">or part payment:</span><input data-payamt="${key}" inputmode="decimal" placeholder="Amount" aria-label="Part payment amount"><input type="date" data-paydate="${key}" value="${esc(D.project.dataDate)}" aria-label="Payment date">
+        <button type="button" class="btn sm" data-act="pay-part" data-key="${key}">Record part payment</button></div>` : '<p class="ok-line">Fully paid.</p>'}</div>`;
+  }
+  function recordPay(key, amount, date) {
+    const [kind, id] = [key.slice(0, key.indexOf(':')), key.slice(key.indexOf(':') + 1)];
+    if (kind === 'inv') {
+      const v = D.invoices.find(x => (x.id || x.no) === id); if (!v) return '';
+      v.pays = Array.isArray(v.pays) ? v.pays : (num(v.paidAmount) ? [{ date: v.paidDate || date, amount: num(v.paidAmount) }] : []);
+      const amt = amount === 'full' ? num(v.total) - invPaid(v) : amount; if (!(amt > 0)) return 'Enter an amount greater than zero.';
+      v.pays.push({ date, amount: Math.round(amt * 100) / 100 }); syncInvPayments(v);
+      return `${v.no || 'Invoice'}: recorded ${money(amt, true)} on ${fmtD(date)}. Status ${v.status}, balance ${money(Math.max(0, num(v.total) - invPaid(v)), true)}.`;
+    }
+    const r = D.ipcs.find(x => x.no === id); if (!r) return '';
+    r.pays = Array.isArray(r.pays) ? r.pays : (num(r.paid) ? [{ date: r.paidDate || date, amount: num(r.paid) }] : []);
+    const amt = amount === 'full' ? ipcDue(r) - sum(r.pays, p => p.amount) : amount; if (!(amt > 0)) return 'Enter an amount greater than zero.';
+    r.pays.push({ date, amount: Math.round(amt * 100) / 100 }); r.paid = sum(r.pays, p => p.amount); r.paidDate = date;
+    return `${r.no}: recorded ${money(amt, true)} on ${fmtD(date)}. Balance ${money(Math.max(0, ipcDue(r) - r.paid), true)}.`;
+  }
+  function undoPay(key, i) {
+    const [kind, id] = [key.slice(0, key.indexOf(':')), key.slice(key.indexOf(':') + 1)];
+    const rec = kind === 'inv' ? D.invoices.find(x => (x.id || x.no) === id) : D.ipcs.find(x => x.no === id);
+    if (!rec || !Array.isArray(rec.pays)) return;
+    rec.pays.splice(i, 1);
+    if (kind === 'inv') syncInvPayments(rec); else { rec.paid = sum(rec.pays, p => p.amount); rec.paidDate = rec.pays.length ? rec.pays[rec.pays.length - 1].date : ''; }
+  }
+  function addInvoice(v, file, text, fileName) {
+    if (D.invoices.some(x => x.no && x.no === v.no && String(x.contractor).toLowerCase() === String(v.contractor).toLowerCase() && Math.abs(num(x.total) - num(v.total)) < 1)) return false;
+    v.id = 'inv-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5);
+    if (file) { v.fileId = v.id; v.file = fileName || file.name; Mom.compact(file, text, () => {}).then(rec => Mom.putFile(v.fileId, rec)).catch(() => {}); }
+    D.invoices.push(v);
+    if (v.category !== 'Main contractor IPC') D.payments.push({ date: v.date || D.project.dataDate, category: payCatOf(v.category), payee: v.contractor, ref: v.no, amount: num(v.total) || num(v.amount), status: v.status === 'Paid' ? 'Paid' : 'Pending', invId: v.id });
+    return true;
+  }
+  function invFromText(text) {
+    const r = Mom.parseInvoice(text);
+    if (r.total === null && r.amount !== null) r.total = r.amount + (r.vat || 0);
+    if (r.amount === null && r.total !== null) r.amount = r.total - (r.vat || 0);
+    const v = { date: r.date || D.project.dataDate, no: r.no, contractor: r.contractor, category: 'Other', ipc: r.ipc, amount: r.amount || 0, vatRate: r.vatRate ?? (r.vat && r.amount ? Math.round(r.vat / r.amount * 1000) / 10 : 0), vat: r.vat || 0, total: r.total || 0, due: r.due, trn: r.trn, status: /\breceipt\b|\bpaid\b|payment received/i.test(text) ? 'Paid' : 'Received' };
+    v.category = invCategory(v, text);
+    return v;
+  }
+  async function processInvFiles(files) {
+    if (busy || !files.length) return;
+    busy = true; const read = [], bad = [];
+    for (const file of files) { docBusy = `Reading ${file.name}…`; setDocMsg(); try { read.push({ text: await Mom.extractText(file, st => { docBusy = `${file.name}: ${st}`; setDocMsg(); }), file, fileName: file.name }); } catch (e) { bad.push(file.name); } }
+    busy = false; commitInvoices(read, bad);
+  }
+  function commitInvoices(read, bad = []) {
+    const list = read.map(r => ({ ...r, v: invFromText(r.text) })).sort((a, b) => (dt(a.v.date) || 0) - (dt(b.v.date) || 0));
+    const added = [], skipped = [];
+    for (const it of list) (addInvoice(it.v, it.file, it.text, it.fileName) ? added : skipped).push(it.v.no || it.fileName);
+    save();
+    const errs = D.invoices.filter(v => added.includes(v.no || v.file) && invChecks(v).some(c => c.lvl === 'bad')).map(v => v.no);
+    const cats = {}; for (const v of D.invoices.filter(x => added.includes(x.no || x.file))) cats[v.category] = (cats[v.category] || 0) + 1;
+    docBusy = (added.length ? `Added ${added.length} document${added.length > 1 ? 's' : ''} (${Object.entries(cats).map(([k, n]) => n + ' ' + k.toLowerCase()).join(', ')}). ` : '') + (skipped.length ? `Already recorded, skipped: ${skipped.join(', ')}. ` : '')
+      + (added.length ? (errs.length ? `Calculation errors in ${errs.join(', ')}: see the invoices log.` : 'All calculations check out.') : (skipped.length ? '' : 'No invoice figures were recognised.')) + (bad.length ? ` Could not read: ${bad.join(', ')}.` : '');
+    tab = 'payments'; render();
+  }
+  function invoicesCard() {
+    const list = [...D.invoices].sort((a, b) => dt(b.date) - dt(a.date));
+    const errN = list.filter(v => invChecks(v).some(c => c.lvl === 'bad')).length, unpaid = list.filter(v => v.status !== 'Paid' && v.status !== 'Rejected'), owed = sum(unpaid, v => num(v.total) - invPaid(v));
+    const line = (k, val, cls) => `<tr${cls ? ` class="${cls}"` : ''}><td>${k}</td><td class="r">${val}</td></tr>`;
+    const rows = list.map(v => {
+      const cs = invChecks(v), nb = cs.filter(c => c.lvl === 'bad').length;
+      const badge = nb ? `<span class="tag bad">${nb} error${nb > 1 ? 's' : ''}</span>` : cs.length ? `<span class="tag warn">${cs.length} to check</span>` : '<span class="tag good">✓ checks out</span>';
+      const ipc = v.category === 'Main contractor IPC' && normIpc(v.ipc) ? D.ipcs.find(x => normIpc(x.no) === normIpc(v.ipc)) : null;
+      const brk = `<table class="mini brk"><tbody>${line('Amount excl. VAT', money(num(v.amount), true))}${line(`VAT${num(v.vatRate) ? ' @ ' + num(v.vatRate) + '%' : ''}`, money(num(v.vat), true))}${line('Total incl. VAT', money(num(v.total), true), 'tot')}
+        ${ipc ? line(`Certified net of ${esc(normIpc(v.ipc))}`, money(num(ipc.statedNet) || ipcNet(ipc), true), Math.abs((num(ipc.statedNet) || ipcNet(ipc)) - num(v.amount)) > 1 ? 'err' : '') : ''}
+        ${line('Due date', v.due ? fmtD(v.due) : '—')}${line('TRN', esc(v.trn || '—'))}</tbody></table>${v.status === 'Rejected' ? '<p class="cap">Rejected: no payment due.</p>' : payBox('inv', v.id || v.no, num(v.total), invPaid(v), v.pays)}`;
+      const tone = { Received: 'info', Approved: 'warn', 'Part paid': 'warn', Paid: 'good', Rejected: 'bad' }[v.status] || '';
+      return `<details class="trail" data-ed="inv-${esc(v.id || v.no)}"${openEd.has('inv-' + (v.id || v.no)) ? ' open' : ''}><summary><b>${esc(v.no || 'No number')}</b><span class="cap">${fmtD(v.date)}</span><span class="mtitle">${esc(v.contractor || '—')}</span><span class="tag">${esc(v.category)}${v.ipc && v.category === 'Main contractor IPC' ? ' · ' + esc(normIpc(v.ipc)) : ''}</span><b class="r">${money(num(v.total), true)}</b>${v.status === 'Part paid' ? `<small class="cap">paid ${money(invPaid(v), true)}</small>` : ''}${badge}<span class="tag ${tone}">${esc(v.status)}</span></summary>
+        <div class="mbody"><div class="ipcgrid"><div>${brk}</div><div><h4 class="ck">Calculation checks</h4>${checkList(cs)}</div></div>
+        <div class="acts mfoot">${v.file ? `<span class="cap">${esc(v.file)}</span><button type="button" class="btn sm" data-act="sub-open" data-id="${esc(v.fileId)}">Open file</button>` : '<span class="cap">No file stored</span>'}<button type="button" class="btn sm" data-act="inv-del" data-id="${esc(v.id || v.no)}">${invDelArm === (v.id || v.no) ? 'Confirm delete' : 'Delete'}</button></div></div></details>`;
+    }).join('');
+    return `<details class="card span2 trailbox" data-ed="invs"${openEd.has('invs') ? ' open' : ''}><summary><h3>Invoices and payments log</h3><span class="cap">${list.length} document${list.length === 1 ? '' : 's'} · ${money(sum(list.filter(v => v.status !== 'Rejected'), v => v.total), true)} incl. VAT · ${unpaid.length} not fully paid (${money(owed, true)} outstanding)${errN ? ` · <b class="errtxt">${errN} with calculation errors</b>` : ''}</span></summary>
+      <p class="cap">Newest first. Each document is checked on its own: VAT and total arithmetic, TRN, duplicate numbers, the IPC it bills (contractor invoices) and the subcontract value (subcontractor invoices). Change the status in the edit section below.</p>
+      <div class="trails">${rows || '<p class="cap">No invoices yet. Drop them above.</p>'}</div></details>`;
   }
 
   // ---------- subcontractor agreements ----------
@@ -1991,6 +2187,7 @@ window.Dash = (() => {
     if (setPending(t) || setDoc(t)) { if (t.dataset.if) render(); return; }
     if (t.hasAttribute('data-momreview')) { D.project.momReview = t.checked; save(); return; }
     const KIND = { 'wbs-file': 'wbs', 'prog-file': 'prog', 'tender-file': 'tender', 'boq-file': 'boq', 'sub-file': 'sub', 'ipc-file': 'ipc' };
+    if (t.dataset.act === 'inv-file' && t.files.length) { const fl = [...t.files]; t.value = ''; processInvFiles(fl); return; }
     if (t.dataset.act === 'ipc-file' && t.files.length) { const fl = [...t.files]; t.value = ''; processIpcFiles(fl); return; }
     if (t.hasAttribute('data-ipcreview')) { D.project.ipcReview = t.checked; save(); return; }
     if (KIND[t.dataset.act] && t.files.length) { const f = t.files[0]; t.value = ''; processDoc(KIND[t.dataset.act], f); return; }
@@ -2002,6 +2199,7 @@ window.Dash = (() => {
       return;
     }
     if (t.closest('[data-form]')) return;
+    if (t.dataset.t === 'invoices' && ['paidAmount', 'status', 'total', 'category', 'ipc'].includes(t.dataset.k)) { setVal(t); const v = D.invoices[+t.dataset.i]; if (t.dataset.k === 'paidAmount') v.pays = num(v.paidAmount) ? [{ date: v.paidDate || D.project.dataDate, amount: num(v.paidAmount) }] : []; if (t.dataset.k !== 'status') syncInvPayments(v); save(); refresh(); return; }
     if (setVal(t)) { if (t.dataset.k === 'code' && t.dataset.t === 'wbs') render(); else refresh(); }
   }
   function onClick(e) {
@@ -2036,6 +2234,15 @@ window.Dash = (() => {
     if (a === 'ipc-new') { const last = sortedIpcs().pop(); const per = last && /^\d{4}-\d{2}$/.test(last.period) ? (() => { const [y, mo] = last.period.split('-').map(Number); return mo === 12 ? `${y + 1}-01` : `${y}-${String(mo + 1).padStart(2, '0')}`; })() : D.project.dataDate.slice(0, 7);
       docPend = { kind: 'ipc', text: '', fileName: 'manual entry', file: null, fields: { no: nextIpcNo(), period: per, cumGross: 0, previous: last && num(last.cumGross) ? num(last.cumGross) : 0, gross: 0, retention: 0, advance: 0, other: 0, net: 0, vat: 0, total: 0, applied: 0, paid: 0, paidDate: '' } };
       docBusy = 'Enter the certificate figures; the checks update as you type each value.'; render(); return; }
+    if (a === 'pay-full' || a === 'pay-part') {
+      const key = b.dataset.key, amtEl = root.querySelector(`[data-payamt="${CSS.escape(key)}"]`), dEl = root.querySelector(`[data-paydate="${CSS.escape(key)}"]`);
+      const date = (dEl && dEl.value) || D.project.dataDate, amount = a === 'pay-full' ? 'full' : num(amtEl && amtEl.value);
+      const m = recordPay(key, amount, date); if (m && !/^Enter/.test(m)) save(); docBusy = m; render(); return;
+    }
+    if (a === 'pay-undo') { undoPay(b.dataset.key, +b.dataset.i); save(); docBusy = 'Payment removed.'; render(); return; }
+    if (a === 'inv-paste') { const ta = root.querySelector('[data-inv-text]'), txt = ta ? ta.value.trim() : ''; if (!txt) { docBusy = 'Paste the invoice text first.'; setDocMsg(); return; } ta.value = ''; commitInvoices([{ text: txt, file: null, fileName: 'Pasted text' }]); return; }
+    if (a === 'inv-new') { D.invoices.push({ id: 'inv-' + Date.now().toString(36), date: D.project.dataDate, no: '', contractor: '', category: 'Main contractor IPC', ipc: '', amount: 0, vatRate: 5, vat: 0, total: 0, due: '', trn: '', status: 'Received' }); openEd.add('invoices'); save(); render(); const el = root.querySelector('[data-ed=invoices]'); if (el) el.scrollIntoView(); docBusy = 'New invoice row added at the end of the table below: fill it in.'; setDocMsg(); return; }
+    if (a === 'inv-del') { const id = b.dataset.id; if (invDelArm !== id) { invDelArm = id; render(); setTimeout(() => { if (invDelArm === id) { invDelArm = ''; if (root.isConnected) render(); } }, 6000); return; } const v = D.invoices.find(x => (x.id || x.no) === id); if (v) { if (v.fileId) Mom.delFile(v.fileId); D.payments = D.payments.filter(p => !(v.id && p.invId === v.id)); } D.invoices = D.invoices.filter(x => (x.id || x.no) !== id); invDelArm = ''; save(); docBusy = `Deleted invoice ${v ? v.no : ''}${v && v.category !== 'Main contractor IPC' ? ' and its entry in Other project payments' : ''}.`; render(); return; }
     if (a === 'ipc-del') { const no = b.dataset.id; if (ipcDelArm !== no) { ipcDelArm = no; render(); setTimeout(() => { if (ipcDelArm === no) { ipcDelArm = ''; if (root.isConnected) render(); } }, 6000); return; } const r = D.ipcs.find(x => x.no === no); if (r && r.fileId) Mom.delFile(r.fileId); D.ipcs = D.ipcs.filter(x => x.no !== no); ipcDelArm = ''; save(); docBusy = `Deleted ${no}.`; render(); return; }
     if (a && a.startsWith('doc-paste-')) { const ta = root.querySelector('[data-doc-text]'), txt = ta ? ta.value.trim() : ''; if (!txt) { docBusy = 'Paste the document text first.'; setDocMsg(); return; } readDoc(a.slice(10), txt, 'Pasted text'); return; }
     if (a === 'doc-apply') { applyDoc(); return; }
@@ -2088,7 +2295,7 @@ window.Dash = (() => {
       el.addEventListener('dragover', e => { const z = e.target.closest('[data-drop]'); if (z) { e.preventDefault(); z.classList.add('over'); } });
       el.addEventListener('dragleave', e => { const z = e.target.closest('[data-drop]'); if (z) z.classList.remove('over'); });
       el.addEventListener('dragover', e => { const z = e.target.closest('[data-drop-kind]'); if (z) { e.preventDefault(); z.classList.add('over'); } });
-      el.addEventListener('drop', e => { const k = e.target.closest('[data-drop-kind]'); if (k) { e.preventDefault(); k.classList.remove('over'); if (k.dataset.dropKind === 'ipc') { processIpcFiles([...e.dataTransfer.files]); return; } if (e.dataTransfer.files[0]) processDoc(k.dataset.dropKind, e.dataTransfer.files[0]); return; } });
+      el.addEventListener('drop', e => { const k = e.target.closest('[data-drop-kind]'); if (k) { e.preventDefault(); k.classList.remove('over'); if (k.dataset.dropKind === 'ipc') { processIpcFiles([...e.dataTransfer.files]); return; } if (k.dataset.dropKind === 'inv') { processInvFiles([...e.dataTransfer.files]); return; } if (e.dataTransfer.files[0]) processDoc(k.dataset.dropKind, e.dataTransfer.files[0]); return; } });
       el.addEventListener('drop', e => { const z = e.target.closest('[data-drop]'); if (!z) return; e.preventDefault(); z.classList.remove('over'); if (e.dataTransfer.files.length) { queue.push(...e.dataTransfer.files); processNext(); setMomMsg(); } });
       render();
     },
