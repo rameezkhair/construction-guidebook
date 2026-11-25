@@ -257,6 +257,8 @@ table.mintbl td:first-child{font-weight:700;white-space:nowrap}table.mintbl td:n
 .vals.ipcref{margin-top:4px;padding:6px 10px 6px 18px;background:var(--th);border-radius:6px;margin-left:18px;flex-basis:calc(100% - 18px)}
 .trail>summary .vals{order:10}
 .dfig.tall{min-height:360px}.lg.ctr{background:repeating-linear-gradient(90deg,var(--ink) 0 7px,transparent 7px 11px)}
+.alignbox{border-color:var(--warn);border-width:1.5px;margin-bottom:16px}.alignbox p{margin:6px 0}
+.okbar{margin:0 0 14px;padding:8px 12px;border-radius:8px;background:color-mix(in srgb,var(--good) 12%,transparent);color:var(--good);font-weight:700;font-size:14.5px}
 
 </style>
 <script>new MutationObserver(()=>{for(const c of document.querySelectorAll('.stack td:not([data-l])')){let i=0,p=c;while(p=p.previousElementSibling)i+=p.colSpan;c.dataset.l=c.closest('table').rows[0].cells[i]?.textContent||''}}).observe(document,{childList:true,subtree:true})</script>
@@ -1113,7 +1115,7 @@ window.Dash = (() => {
       ${ldKpi()}
       ${kpi('Milestones achieved', `${m.msDone} / ${D.milestones.length}`, `${m.msLate} late or at risk`, m.msLate ? 'bad' : 'good')}
       ${(() => { const c = cpm(); return c.acts.length ? kpi('Forecast completion (CPM)', fmtD(c.finishDate), `baseline ${fmtD(c.baseFinish)} · ${c.slip > 0 ? c.slip + ' days late' : c.slip < 0 ? -c.slip + ' days early' : 'on time'}`, c.slip > 0 ? 'bad' : 'good') + kpi('Critical activities', String(c.critical.length), c.critical.map(a => a.code).join(', ') || 'none', c.critical.length ? 'warn' : 'good') : ''; })()}
-    </div>${logForm()}${docUpload()}${docPend ? docReview() : ""}<div class="dgrid">
+    </div>${contractCheck()}${logForm()}${docUpload()}${docPend ? docReview() : ""}<div class="dgrid">
       ${card('Programme: WBS progress and milestones', 'Updates as soon as you change the baseline or log progress.', ganttLegend() + fig('gantt', 'auto'), 1)}
       ${card('S-curve', 'Cumulative planned value from the baseline, earned value from the progress log, and actual cost.', legend([['pv', 'Planned value'], ['ev', 'Earned value'], ['ac', 'Actual cost']]) + fig('scurve'), 1)}
       ${(() => { const c = cpm(); return card('Critical path (CPM)', `Recalculated from the WBS baseline, predecessors and progress at the data date: completed work is fixed, work in progress finishes after its remaining duration, and work not started cannot start before the data date. Thin grey bar = baseline; coloured bar = early start to early finish (red = critical, blue = has float, green = complete); dashed line = total float to the late finish.${c.cycle ? ' <b>Warning: the predecessors form a loop; check them.</b>' : ''}${c.missing.length ? ' <b>Unknown predecessor codes: ' + esc(c.missing.join(', ')) + '.</b>' : ''}`, legend([['bl', 'Baseline'], ['late', 'Critical'], ['ce', 'Has float'], ['ok', 'Complete'], ['fl', 'Total float']]) + fig('cpm', 'auto') + cpmTable(c), 1); })()}
@@ -1598,6 +1600,35 @@ window.Dash = (() => {
     ['ldRate', 'Liquidated damages rate'], ['ldPer', 'LDs per'], ['ldCap', 'LD cap % of contract'], ['dlpMonths', 'Defects liability period (months)']];
   const P_NUM = ['contract', 'retention', 'wCost', 'wTime', 'wCx', 'periodDays', 'advance', 'ldRate', 'ldCap', 'dlpMonths'];
 
+  // ---------- baseline programme against the contract period ----------
+  function baselineSpan() {
+    const st = D.wbs.map(w => dt(w.start)).filter(isFinite), fi = D.wbs.map(w => dt(w.finish)).filter(isFinite);
+    return st.length && fi.length ? { start: Math.min(...st), finish: Math.max(...fi) } : null;
+  }
+  function contractCheck() {
+    const b = baselineSpan(), cs = dt(D.project.commencement), cf = dt(D.project.completion);
+    if (!b || !isFinite(cs) || !isFinite(cf)) return '';
+    const ds = Math.round((b.start - cs) / DAY), df = Math.round((b.finish - cf) / DAY);
+    if (Math.abs(ds) <= 1 && Math.abs(df) <= 1) return `<p class="okbar">Baseline programme matches the contract period: ${fmtD(D.project.commencement)} → ${fmtD(D.project.completion)}.</p>`;
+    const iso = t => new Date(t).toISOString().slice(0, 10);
+    return `<section class="card alignbox"><h3>Baseline programme does not match the contract</h3>
+      <p>Baseline runs <b>${fmtD(iso(b.start))} → ${fmtD(iso(b.finish))}</b>; the contract period is <b>${fmtD(D.project.commencement)} → ${fmtD(D.project.completion)}</b>
+      (${ds ? `start ${Math.abs(ds)} days ${ds > 0 ? 'after' : 'before'} commencement` : 'start matches'}; ${df ? `finish ${Math.abs(df)} days ${df > 0 ? 'after' : 'before'} completion` : 'finish matches'}).</p>
+      <div class="acts"><button type="button" class="btn sm primary" data-act="align-fit">Fit baseline to the contract period</button><button type="button" class="btn sm" data-act="align-shift">Shift baseline to commencement (keep durations)</button></div>
+      <p class="cap">Moves the WBS baseline start and finish dates and the milestone baseline dates. Logged progress, costs, IPCs and meetings keep their actual dates. Check the contract dates on the Contract & BOQ tab first.</p></section>`;
+  }
+  function alignBaseline(mode) {
+    const b = baselineSpan(), cs = dt(D.project.commencement), cf = dt(D.project.completion);
+    if (!b || !isFinite(cs) || !isFinite(cf)) return 'Enter the commencement and completion dates on the Contract & BOQ tab first.';
+    const k = mode === 'fit' && b.finish > b.start ? (cf - cs) / (b.finish - b.start) : 1;
+    const map = d => { const t = dt(d); if (!isFinite(t)) return d; return new Date(Math.round((cs + (t - b.start) * k) / DAY) * DAY).toISOString().slice(0, 10); };
+    for (const w of D.wbs) { w.start = map(w.start); w.finish = map(w.finish); }
+    for (const m of D.milestones) if (!/^C-/.test(m.id)) { m.baseline = map(m.baseline); if (m.forecast && !m.actual) m.forecast = map(m.forecast); }
+    syncContract();
+    const nb = baselineSpan();
+    return `Baseline ${mode === 'fit' ? 'fitted to' : 'shifted to'} the contract: now ${fmtD(new Date(nb.start).toISOString().slice(0, 10))} → ${fmtD(new Date(nb.finish).toISOString().slice(0, 10))}. The programme, CPM, S-curve and contract value chart have been recalculated.`;
+  }
+
   // ---------- contract particulars flow into every section ----------
   function syncContract() {
     const p = D.project;
@@ -1845,6 +1876,7 @@ window.Dash = (() => {
       ${subKpi()}
       ${kpi('Liquidated damages', num(p.ldRate) ? `${money(num(p.ldRate))}/${esc(p.ldPer || 'day')}` : '—', num(p.ldCap) ? `capped at ${num(p.ldCap)}% (${money(num(p.contract) * num(p.ldCap) / 100)})` : 'no cap recorded')}
     </div>
+    ${contractCheck()}
     <section class="card upl"><h3>Set up from tender, contract and subcontract documents</h3>
       <p class="cap">Upload the tender or contract document (form of agreement, particular conditions, appendix to tender) to fill the contract particulars, and the priced BOQ to set WBS budgets. Files are read in your browser; you review everything before it is applied.</p>
       <div class="dgrid">
@@ -2324,6 +2356,7 @@ window.Dash = (() => {
       })();
       return;
     }
+    if (a === 'align-fit' || a === 'align-shift') { const m = alignBaseline(a === 'align-fit' ? 'fit' : 'shift'); save(); render(); const p = root.querySelector('[data-msg="proj"]'); if (p) p.textContent = m; return; }
     if (a === 'ipc-del') { const no = b.dataset.id; if (ipcDelArm !== no) { ipcDelArm = no; render(); setTimeout(() => { if (ipcDelArm === no) { ipcDelArm = ''; if (root.isConnected) render(); } }, 6000); return; } const r = D.ipcs.find(x => x.no === no); if (r && r.fileId) Mom.delFile(r.fileId); D.ipcs = D.ipcs.filter(x => x.no !== no); ipcDelArm = ''; save(); docBusy = `Deleted ${no}.`; render(); return; }
     if (a && a.startsWith('doc-paste-')) { const ta = root.querySelector('[data-doc-text]'), txt = ta ? ta.value.trim() : ''; if (!txt) { docBusy = 'Paste the document text first.'; setDocMsg(); return; } readDoc(a.slice(10), txt, 'Pasted text'); return; }
     if (a === 'doc-apply') { applyDoc(); return; }
