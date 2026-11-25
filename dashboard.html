@@ -353,7 +353,7 @@ window.Mom = (() => {
     const head = lines.slice(0, 15);
     const title = (head.find(l => /meeting\s*(no\.?|number|#)/i.test(l)) || head.find(l => /meeting|minutes|MOM/i.test(l) && !/^minutes of meeting$/i.test(l)) || head.find(l => /meeting|minutes|MOM/i.test(l)) || fileName).slice(0, 120);
     // Items: numbered or bulleted lines, with continuation lines appended.
-    const START = /^(\(?\d{1,2}(?:\.\d{1,2}){0,2}[).:]?|\(?[a-z][).]|[-•*▪●○■])\s+(?=\S)/i;
+    const START = /^(\(?\d{1,2}[).:]|\d{1,2}(?:\.\d{1,2}){1,2}[).:]?|\(?[a-z][).]|[-•*▪●○■])\s+(?=\S)/i;
     const items = []; let curItem = null, skipping = false;
     for (const l of lines) {
       if (SKIP.test(l)) { skipping = true; curItem = null; continue; }
@@ -1054,9 +1054,10 @@ window.Dash = (() => {
       ${kpi(`Variations from meetings (${esc(cur())})`, money(sum(fromMom, p => p.value)), `${fromMom.length} PCOs · ${fromMom.filter(p => p.status === 'Approved').length} approved as COs`, fromMom.length ? 'warn' : '')}
     </div>
     <section class="card upl"><h3>Upload minutes of meeting</h3>
-      <p class="cap">PDF (typed or scanned) or a photo (JPG, PNG). The text is read in your browser with free tools (pdf.js and Tesseract OCR); nothing is sent to a server. You review what was found before it is added. Decisions and critical items then show on the programme chart, and variations become PCOs (approved or instructed by the client: change orders).</p>
-      <label class="drop" data-drop><input type="file" accept=".pdf,image/*,.txt" data-act="mom-file" multiple hidden><b>Choose PDF or image files</b><span>or drop them here</span></label>
-      <details class="paste"><summary>Or paste the minutes as text</summary><textarea data-mom-text rows="6" placeholder="Paste the meeting minutes here"></textarea><button type="button" class="btn sm" data-act="mom-paste">Extract from text</button></details>
+      <p class="cap">Drop all your minutes at once: PDF (typed or scanned) or photos (JPG, PNG). Each one is read in your browser with free tools (pdf.js and Tesseract OCR; nothing is sent to a server) and added straight to the project, oldest meeting first, with follow-ups linked into each item's trail. Decisions and critical items show on the programme chart; variations become PCOs, and client-approved ones become change orders. Meetings already recorded are skipped.</p>
+      <label class="drop" data-drop><input type="file" accept=".pdf,image/*,.txt" data-act="mom-file" multiple hidden><b>Drop minutes of meeting here</b><span>or click to choose files (several at once)</span></label>
+      <label class="inl"><input type="checkbox" data-momreview${D.project.momReview ? ' checked' : ''}> Review the items before they are added (otherwise minutes are added automatically)</label>
+      <details class="paste"><summary>Or paste the minutes as text</summary><textarea data-mom-text rows="6" placeholder="Paste the meeting minutes here"></textarea><button type="button" class="btn sm" data-act="mom-paste">Add from text</button></details>
       <p class="cap momst" data-msg="mom" role="status">${esc(momBusy)}${queue.length ? ` · ${queue.length} more file(s) waiting` : ''}</p></section>
     ${review}
     <div class="dgrid">
@@ -1084,7 +1085,7 @@ window.Dash = (() => {
       <details class="xt"><summary>Show the extracted text</summary><pre>${esc(p.text.slice(0, 20000))}</pre></details></section>`;
   }
   // ---------- item trail: link each new minute to the same item in earlier meetings ----------
-  const STOPW = new Set(['the', 'and', 'for', 'with', 'that', 'this', 'from', 'will', 'shall', 'have', 'been', 'into', 'than', 'they', 'their', 'there', 'were', 'which', 'contractor', 'consultant', 'client', 'owner', 'employer', 'submit', 'agreed', 'meeting', 'item', 'items', 'days', 'week', 'weeks']);
+  const STOPW = new Set(['the', 'and', 'for', 'with', 'that', 'this', 'from', 'will', 'shall', 'have', 'been', 'into', 'than', 'they', 'their', 'there', 'were', 'which', 'contractor', 'consultant', 'client', 'owner', 'employer', 'submit', 'agreed', 'meeting', 'item', 'items', 'days', 'week', 'weeks', 'action', 'plan', 'provide', 'confirm', 'issue', 'review', 'update', 'under', 'watch', 'remain']);
   const toks = t => new Set((String(t).normalize('NFD').replace(/[̀-ͯ]/g, '').match(/[A-Za-z][A-Za-z0-9]*/g) || [])
     .filter(w => w.length >= 4 || (w.length >= 2 && w === w.toUpperCase()))
     .map(w => { w = w.toLowerCase(); return w.length > 4 && w.endsWith('s') ? w.slice(0, -1) : w; })
@@ -1105,7 +1106,7 @@ window.Dash = (() => {
         if (t.last.status === 'Closed') sc -= 0.08;
         if (sc > bs) { bs = sc; best = t; }
       }
-      it.follow = best && bs >= 0.28 ? best.id : '';
+      it.follow = best && bs >= 0.3 ? best.id : '';
     }
   }
   const CLOSE_RX = /\b(closed|completed|complete|resolved|done|received|accepted|issued|delivered in full|approved|finali[sz]ed)\b/i;
@@ -1118,23 +1119,44 @@ window.Dash = (() => {
   }
 
   function setMomMsg() { const m = root && root.querySelector('[data-msg="mom"]'); if (m) m.textContent = momBusy + (queue.length ? ` · ${queue.length} more file(s) waiting` : ''); }
+  // Minutes are added automatically unless "Review before adding" is ticked.
+  const autoMode = () => !D.project.momReview;
+  let staged = [], failed = [];
   async function processNext() {
-    if (pending || busy || !queue.length) return;
+    if (pending || busy) return;
+    if (!queue.length) { if (staged.length) await commitStaged(); return; }
     const file = queue.shift(); busy = true; momBusy = `Reading ${file.name}…`; setMomMsg();
     try {
       const text = await Mom.extractText(file, s => { momBusy = `${file.name}: ${s}`; setMomMsg(); });
-      const p = Mom.parse(text, file.name, D.wbs); suggestFollow(p.items);
-      pending = Object.assign(p, { fileName: file.name, file, text });
-      momBusy = `${p.items.length} items found in ${file.name}. Review them below, then add them to the project.`;
-    } catch (err) { momBusy = `${file.name}: ${err && err.message ? err.message : 'could not be read'}`; }
-    busy = false; tab = 'meetings'; render();
-    if (!pending) processNext();
+      const p = Object.assign(Mom.parse(text, file.name, D.wbs), { fileName: file.name, file, text });
+      if (autoMode()) { staged.push(p); momBusy = `Read ${file.name}: ${p.items.length} items.`; }
+      else { suggestFollow(p.items); pending = p; momBusy = `${p.items.length} items found in ${file.name}. Review them below, then add them to the project.`; }
+    } catch (err) { failed.push(file.name); momBusy = `${file.name}: ${err && err.message ? err.message : 'could not be read'}`; }
+    busy = false;
+    if (autoMode()) { setMomMsg(); processNext(); }
+    else { tab = 'meetings'; render(); if (!pending) processNext(); }
+  }
+  // Add every file read in this batch, oldest meeting first, so follow-ups link in the right order.
+  async function commitStaged() {
+    const list = staged.sort((a, b) => (dt(a.date) || 0) - (dt(b.date) || 0)); staged = [];
+    const done = [], skipped = [];
+    let items = 0, linked = 0, pcos = 0;
+    for (const p of list) {
+      const ref = (p.ref || p.fileName.replace(/\.[^.]+$/, '')).slice(0, 40), date = p.date || D.project.dataDate;
+      if (D.meetings.some(m => m.ref === ref && m.date === date)) { skipped.push(ref); continue; }
+      suggestFollow(p.items); pending = p;
+      const r = await commitPending(true);
+      if (r) { done.push(ref); items += r.items; linked += r.linked; pcos += r.pcos; }
+    }
+    momBusy = (done.length ? `Added ${done.length} meeting${done.length > 1 ? 's' : ''} (${done.join(', ')}): ${items} items${linked ? `, ${linked} linked to earlier meetings` : ''}${pcos ? `, ${pcos} PCO(s) created or updated` : ''}.` : 'No new meetings added.')
+      + (skipped.length ? ` Already recorded, skipped: ${skipped.join(', ')}.` : '') + (failed.length ? ` Could not read: ${failed.join(', ')}.` : '');
+    failed = []; tab = 'meetings'; render();
   }
   const nextNo = (prefix, used) => { let n = 1; const u = new Set(used); while (u.has(prefix + String(n).padStart(3, '0'))) n++; return prefix + String(n).padStart(3, '0'); };
-  async function commitPending() {
-    const p = pending; if (!p || busy) return;
-    busy = true; momBusy = 'Saving…'; setMomMsg();
-    const id = 'mom-' + Date.now().toString(36), ref = (p.ref || p.fileName.replace(/\.[^.]+$/, '')).slice(0, 40), date = p.date || D.project.dataDate;
+  async function commitPending(quiet) {
+    const p = pending; if (!p || busy) return null;
+    busy = true; momBusy = `Saving ${p.ref || p.fileName}…`; setMomMsg();
+    const id = 'mom-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5), ref = (p.ref || p.fileName.replace(/\.[^.]+$/, '')).slice(0, 40), date = p.date || D.project.dataDate;
     const items = p.items.filter(x => x.include), counts = {}; let linked = 0, updated = 0;
     for (const it of items) {
       counts[it.type] = (counts[it.type] || 0) + 1;
@@ -1156,7 +1178,7 @@ window.Dash = (() => {
       }
     }
     const meet = { id, ref, title: p.title, date, file: p.file ? p.fileName : '', origSize: p.file ? p.file.size : 0, stored: 0, uploaded: new Date().toISOString().slice(0, 10), counts };
-    D.meetings.push(meet); save(); pending = null; render();
+    D.meetings.push(meet); save(); pending = null; if (!quiet) render();
     let stored = 0, note = '';
     try {
       const rec = await Mom.compact(p.file, p.text, s => { momBusy = s; setMomMsg(); });
@@ -1165,6 +1187,7 @@ window.Dash = (() => {
     meet.stored = stored; save(); busy = false;
     const v = items.filter(x => x.type === 'Variation');
     momBusy = `Added ${items.length} items from ${ref}${v.length - updated ? `, including ${v.length - updated} new PCO(s)` : ''}${linked ? `; ${linked} followed up earlier items` : ''}${updated ? `; ${updated} existing PCO(s) updated` : ''}.${stored && p.file ? ` Stored ${kb(stored)} (original ${kb(p.file.size)}).` : ''}${note}`;
+    if (quiet) return { items: items.length, linked, pcos: v.length };
     render(); processNext();
   }
 
@@ -1671,6 +1694,7 @@ window.Dash = (() => {
   function onChange(e) {
     const t = e.target;
     if (setPending(t) || setDoc(t)) return;
+    if (t.hasAttribute('data-momreview')) { D.project.momReview = t.checked; save(); return; }
     const KIND = { 'wbs-file': 'wbs', 'prog-file': 'prog', 'tender-file': 'tender', 'boq-file': 'boq' };
     if (KIND[t.dataset.act] && t.files.length) { const f = t.files[0]; t.value = ''; processDoc(KIND[t.dataset.act], f); return; }
     if (t.dataset.act === 'proj-switch') { switchTo(t.value); return; }
@@ -1705,7 +1729,9 @@ window.Dash = (() => {
     if (a === 'mom-paste') {
       const ta = root.querySelector('[data-mom-text]'), txt = ta ? ta.value.trim() : '';
       if (!txt) { momBusy = 'Paste the minutes text first.'; setMomMsg(); return; }
-      const p = Mom.parse(txt, 'Pasted text', D.wbs); suggestFollow(p.items); pending = Object.assign(p, { fileName: 'Pasted text', file: null, text: txt });
+      const p = Object.assign(Mom.parse(txt, 'Pasted text', D.wbs), { fileName: 'Pasted text', file: null, text: txt });
+      if (autoMode()) { staged.push(p); ta.value = ''; commitStaged(); return; }
+      suggestFollow(p.items); pending = p;
       momBusy = `${p.items.length} items found in the pasted text. Review them below.`; render(); return;
     }
     if (a === 'mom-save') { commitPending(); return; }
