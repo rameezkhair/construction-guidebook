@@ -196,6 +196,14 @@ td.acts{white-space:nowrap}td.acts .btn{margin:2px}
 .tag.act{background:#e3d7ff}
 .lg.tri{width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-top:8px solid var(--c-ev);background:none;border-radius:0}
 table.rv select{min-width:132px}table.rv td:nth-child(3) select{min-width:76px}
+tr.crit td{background:color-mix(in srgb,var(--bad) 10%,transparent)}tr.crit td:first-child{box-shadow:inset 3px 0 var(--bad)}
+.lg.br{background:var(--bad);opacity:.6;height:10px}.lg.fl{background:repeating-linear-gradient(90deg,var(--muted) 0 4px,transparent 4px 7px)}
+.lg.ce{background:var(--c-ev);height:10px}
+label.inl{display:flex;gap:8px;align-items:center;margin:10px 0;font-size:14.5px}label.inl input{width:20px;height:20px;accent-color:var(--hv)}
+.formula{font-family:Georgia,serif;font-size:16px;background:var(--th);border-radius:8px;padding:10px 14px;margin:8px 0;overflow-x:auto;white-space:nowrap}
+.pform.wf{max-width:640px;margin-bottom:12px}
+table.tv{min-width:640px}
+.pform select{font:inherit;font-size:16px;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:6px;min-height:40px;padding:4px 8px;width:100%}
 
 </style>
 <script>new MutationObserver(()=>{for(const c of document.querySelectorAll('.stack td:not([data-l])')){let i=0,p=c;while(p=p.previousElementSibling)i+=p.colSpan;c.dataset.l=c.closest('table').rows[0].cells[i]?.textContent||''}}).observe(document,{childList:true,subtree:true})</script>
@@ -301,7 +309,12 @@ window.Mom = (() => {
   }
   function wbsMatch(t, wbs) {
     const norm = s => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
-    const T = norm(t), stop = new Set(['and', 'the', 'works', 'work', 'site', 'setup', 'set', 'services', 'fit', 'out']);
+    let T = norm(t); const stop = new Set(['and', 'the', 'works', 'work', 'site', 'setup', 'set', 'services', 'fit', 'out']);
+    const SYN = [[/mechanical|electrical|plumbing|hvac|fire ?fighting|drainage|chiller|ductwork/, ' mep'], [/cladding|curtain ?wall|glazing|facade|louvre|envelope/, ' facade envelope'],
+      [/finish|fit-?out|joinery|flooring|painting|ceiling|partition/, ' finishes'], [/landscap|external|paving|road|boundary/, ' external'],
+      [/piling|piles|foundation|excavation|basement|substructure|pile cap/, ' substructure'], [/frame|slab|column|structural|superstructure|concrete works/, ' superstructure'],
+      [/preliminar|general requirements|site establishment/, ' preliminaries']];
+    for (const [rx, add] of SYN) if (rx.test(T)) T += add;
     for (const w of wbs) {
       if (w.code && new RegExp(`(^|[^\\d.])${String(w.code).replace('.', '\\.')}([^\\d]|$)`).test(t) && /wbs|item|package|element/i.test(t)) return w.code;
       const keys = norm(w.name).split(/[^a-z]+/).filter(k => k.length >= 3 && !stop.has(k));
@@ -407,7 +420,111 @@ window.Mom = (() => {
   }
   async function usage() { try { const e = await navigator.storage.estimate(); return e.usage || 0; } catch (err) { return 0; } }
 
-  return { extractText, parse, putFile, getFile, delFile, parseDate, compact, openStored, gunzip, usage };
+  // ---------- WBS baseline and contractor progress reports ----------
+  const DATE_RX = /\b\d{4}-\d{1,2}-\d{1,2}\b|\b\d{1,2}[\/.\-]\d{1,2}[\/.\-]\d{2,4}\b|\b\d{1,2}(?:st|nd|rd|th)?[\s\-]+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?[\s,\-]+\d{4}\b|\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+\d{1,2}(?:st|nd|rd|th)?,?\s+\d{4}\b/gi;
+  const CODE_RX = /^\(?((?:\d{1,3}\.)+\d{0,3}|\d{1,3}(?=\s))\)?\s+/;
+  const docLines = text => String(text).replace(/\r/g, '').split('\n').map(l => l.replace(/\s+/g, ' ').trim()).filter(Boolean);
+  function reportDate(lines) {
+    for (const l of lines.slice(0, 40)) if (/\b(date|as of|as at|period ending|cut-?off|status date|data date|week ending|month ending)\b/i.test(l)) { const d = parseDate(l); if (d) return d; }
+    for (const l of lines) { const d = parseDate(l); if (d) return d; }
+    return '';
+  }
+  function parseWbs(text) {
+    const rows = [];
+    for (const l of docLines(text)) {
+      const m = l.match(CODE_RX); if (!m) continue;
+      let code = m[1].replace(/\.$/, '.0'); if (/^\d+$/.test(code)) code += '.0';
+      let rest = l.slice(m[0].length);
+      const dates = (rest.match(DATE_RX) || []).map(parseDate).filter(Boolean);
+      const noDates = rest.replace(DATE_RX, ' ');
+      const nums = (noDates.match(/(?:AED|USD|SAR|QAR|OMR|INR|EUR|GBP|\$|€|£)?\s?\d[\d,]*(?:\.\d+)?\s*(?:k|m|mn|million)?\b(?!\s*%)/gi) || [])
+        .map(s => { let v = parseFloat(s.replace(/[^\d.]/g, '')); if (/(m|mn|million)\s*$/i.test(s)) v *= 1e6; else if (/k\s*$/i.test(s)) v *= 1e3; return v; }).filter(v => isFinite(v));
+      const name = noDates.replace(/(?:AED|USD|SAR|QAR|OMR|INR|EUR|GBP|\$|€|£)?\s?\d[\d,]*(?:\.\d+)?\s*(?:k|m|mn|million|%|days?)?\b/gi, ' ').replace(/[|:;,]+/g, ' ').replace(/\s+/g, ' ').trim();
+      if (!name || name.length < 3) continue;
+      const budget = nums.length ? Math.max(...nums) : 0;
+      rows.push({ include: true, code, name: name.slice(0, 80), budget: budget >= 1000 ? budget : 0, start: dates[0] || '', finish: dates[1] || dates[0] || '' });
+    }
+    return { rows };
+  }
+  function parseProgress(text, wbs) {
+    const lines = docLines(text), date = reportDate(lines);
+    // Column order: if a header names planned before actual, the actual % is the later one on each line.
+    let takeLast = true;
+    const hdr = lines.find(l => /\b(planned|plan|baseline|scheduled)\b/i.test(l) && /\b(actual|achieved|cumulative|complete|progress)\b/i.test(l));
+    if (hdr) { const p = hdr.search(/\b(planned|plan|baseline|scheduled)\b/i), a = hdr.search(/\b(actual|achieved|cumulative)\b/i); if (a >= 0 && p >= 0) takeLast = a > p; }
+    const norm = s => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase(), stop = new Set(['and', 'the', 'works', 'work', 'site', 'setup', 'set', 'services', 'fit', 'out']);
+    const found = new Map();
+    for (const l of lines) {
+      const pcts = (l.match(/\b\d{1,3}(?:\.\d+)?\s*%/g) || []).map(s => parseFloat(s)).filter(v => v >= 0 && v <= 100);
+      if (!pcts.length) continue;
+      let code = '';
+      const m = l.match(CODE_RX);
+      if (m) { let c = m[1].replace(/\.$/, '.0'); if (/^\d+$/.test(c)) c += '.0'; if (wbs.some(w => String(w.code) === c)) code = c; }
+      if (!code) { const L = norm(l); const w = wbs.find(x => norm(x.name).split(/[^a-z]+/).filter(k => k.length >= 4 && !stop.has(k)).some(k => L.includes(k))); if (w) code = w.code; }
+      if (!code || found.has(code)) continue;
+      const pct = takeLast ? pcts[pcts.length - 1] : pcts[0];
+      const w = wbs.find(x => String(x.code) === code);
+      found.set(code, { include: true, code, name: w ? w.name : '', pct: Math.round(pct * 10) / 10, line: l.slice(0, 160) });
+    }
+    return { date, rows: [...found.values()] };
+  }
+
+  // ---------- tender / contract particulars ----------
+  const amount = s => { const m = String(s).match(/([\d][\d,]*(?:\.\d+)?)\s*(m|mn|million|k|thousand)?\b/i); if (!m) return 0; let v = parseFloat(m[1].replace(/,/g, '')); if (/^(m|mn|million)$/i.test(m[2] || '')) v *= 1e6; else if (/^(k|thousand)$/i.test(m[2] || '')) v *= 1e3; return v; };
+  function parseTender(text) {
+    const t = String(text).replace(/\r/g, ''), flat = t.replace(/\s+/g, ' ');
+    const grab = rx => { const m = flat.match(rx); return m ? m[m.length - 1].trim() : ''; };
+    const tl = docLines(t), field = rx => { for (const l of tl) { const m = l.match(rx); if (m) return m[1].trim().replace(/[.,;]$/, ''); } return ''; };
+    const cur = (flat.match(/\b(AED|USD|SAR|QAR|OMR|KWD|BHD|INR|EUR|GBP)\b/) || [])[1] || '';
+    const sumTxt = grab(/(?:contract (?:sum|price|value|amount)|accepted contract amount|tender (?:sum|price|amount)|lump sum price|total (?:contract|tender) (?:sum|price|amount))[^\d]{0,40}([\d][\d,]*(?:\.\d+)?\s*(?:m|mn|million)?)/i);
+    const dateAfter = rx => { const m = flat.match(rx); return m ? parseDate(m[0]) : ''; };
+    const period = flat.match(/(?:time for completion|contract period|completion period|construction period|duration of (?:the )?(?:works|contract))[^\d]{0,30}(\d{1,4})\s*(calendar\s+)?(days|weeks|months)/i);
+    const ld = flat.match(/liquidated damages[^.]{0,120}?((?:AED|USD|SAR|QAR|OMR|INR|EUR|GBP)?\s?[\d][\d,]*(?:\.\d+)?)\s*(?:per|\/)\s*(day|week|calendar day)/i);
+    const ldCap = flat.match(/(?:maximum|cap|limit)[^.]{0,60}liquidated damages[^.]{0,40}?(\d{1,2}(?:\.\d+)?)\s*%|liquidated damages[^.]{0,120}?(?:maximum|cap|not exceed|limited to)[^.]{0,30}?(\d{1,2}(?:\.\d+)?)\s*%/i);
+    const out = {
+      name: field(/^(?:project(?: name| title)?|name of (?:the )?(?:project|works)|the works)\s*[:\-]\s*(.{4,90})$/i).slice(0, 90),
+      employer: field(/^(?:the )?(?:employer|client|owner)\s*[:\-]\s*(.{2,80})$/i),
+      contractor: field(/^(?:the )?contractor\s*[:\-]\s*(.{2,80})$/i),
+      currency: cur, contract: sumTxt ? amount(sumTxt) : 0,
+      commencement: dateAfter(/(?:commencement date|date of commencement|start date|commence(?:ment)? on)[^.]{0,30}?(?:\d{4}-\d{1,2}-\d{1,2}|\d{1,2}[\/.\-]\d{1,2}[\/.\-]\d{2,4}|\d{1,2}(?:st|nd|rd|th)?\s+[A-Za-z]{3,9}\.?,?\s+\d{4}|[A-Za-z]{3,9}\.?\s+\d{1,2},?\s+\d{4})/i),
+      completion: dateAfter(/(?:completion date|date for completion|date of completion|completed by)[^.]{0,30}?(?:\d{4}-\d{1,2}-\d{1,2}|\d{1,2}[\/.\-]\d{1,2}[\/.\-]\d{2,4}|\d{1,2}(?:st|nd|rd|th)?\s+[A-Za-z]{3,9}\.?,?\s+\d{4}|[A-Za-z]{3,9}\.?\s+\d{1,2},?\s+\d{4})/i),
+      periodDays: period ? (+period[1]) * ({ days: 1, weeks: 7, months: 30.4 }[period[3].toLowerCase()] || 1) | 0 : 0,
+      retention: +(grab(/retention[^.%]{0,60}?(\d{1,2}(?:\.\d+)?)\s*%/i) || 0),
+      advance: +(grab(/advance payment[^.%]{0,60}?(\d{1,2}(?:\.\d+)?)\s*%/i) || 0),
+      ldRate: ld ? amount(ld[1]) : 0, ldPer: ld ? (/week/i.test(ld[2]) ? 'week' : 'day') : 'day', ldCap: ldCap ? +(ldCap[1] || ldCap[2]) : 0,
+      dlpMonths: (() => { const m = flat.match(/(?:defects liability|defects notification|DLP|maintenance period)[^.]{0,40}?(\d{1,3})\s*(months|days|years|year)/i); return m ? Math.round(+m[1] * ({ months: 1, days: 1 / 30.4, years: 12, year: 12 }[m[2].toLowerCase()])) : 0; })(),
+    };
+    if (!out.completion && out.commencement && out.periodDays) { const d = new Date(Date.parse(out.commencement) + out.periodDays * 864e5); out.completion = d.toISOString().slice(0, 10); }
+    return out;
+  }
+
+  // ---------- BOQ: bills / sections with their totals, mapped to WBS ----------
+  function parseBoq(text, wbs) {
+    const lines = docLines(text), sections = [];
+    let cur = null;
+    const UNIT = '(?:m2|m²|m3|m³|sqm|cum|lm|rm|m|nr|no\\.?|nos|item|ls|l\\.s\\.|sum|lot|kg|t|ton|tonne|each|ea|set|pcs|day|month|week|hr|hour)';
+    const ITEM = new RegExp(`^([A-Z]?\\d+(?:[.\\-/]\\d+)*[a-z]?|[A-Z])\\.?\\s+(.+?)\\s+${UNIT}\\s+([\\d,]+(?:\\.\\d+)?)\\s+([\\d,]+(?:\\.\\d+)?)\\s+([\\d,]+(?:\\.\\d+)?)$`, 'i');
+    const LS = new RegExp(`^([A-Z]?\\d+(?:[.\\-/]\\d+)*[a-z]?|[A-Z])\\.?\\s+(.+?)\\s+(?:${UNIT}\\s+)?([\\d,]{4,}(?:\\.\\d+)?)$`, 'i');
+    const HEAD = /^(?:bill(?:\s+no\.?)?|section|part|division|trade)\s*[\dA-Z]*\s*[:.\-–]?\s*(.{3,80})$/i;
+    const TOTAL = /(?:total|sub-?total|carried (?:forward|to (?:collection|summary))|bill total)\D{0,40}([\d][\d,]*(?:\.\d+)?)\s*$/i;
+    const num = s => parseFloat(String(s).replace(/,/g, ''));
+    for (const l of lines) {
+      let m;
+      if (/grand total|tender total|total (?:tender|contract) (?:sum|price|amount)|summary total/i.test(l)) continue;
+      if ((m = l.match(TOTAL)) && cur) { cur.stated = num(m[1]); continue; }
+      if ((m = l.match(ITEM))) { if (!cur) { cur = { name: 'General', items: 0, sum: 0, stated: 0 }; sections.push(cur); } cur.items++; cur.sum += num(m[5]); continue; }
+      if ((m = l.match(HEAD)) && !/\d[\d,]{3,}\s*$/.test(l)) { cur = { name: m[1].replace(/\s*[-–:]\s*$/, '').trim(), items: 0, sum: 0, stated: 0 }; sections.push(cur); continue; }
+      if ((m = l.match(LS)) && cur && !/total/i.test(l)) { cur.items++; cur.sum += num(m[3]); continue; }
+    }
+    const grand = (String(text).match(/(?:grand total|total (?:tender|contract) (?:sum|price|amount)|tender total)\D{0,40}([\d][\d,]*(?:\.\d+)?)/i) || [])[1];
+    const rows = sections.filter(s => s.items || s.stated).map(s => {
+      const amt = s.stated || s.sum;
+      return { include: true, name: s.name.slice(0, 80), items: s.items, amount: Math.round(amt * 100) / 100, wbs: wbsMatch(s.name, wbs) || '' };
+    });
+    return { rows, grand: grand ? num(grand) : rows.reduce((a, r) => a + r.amount, 0) };
+  }
+
+  return { extractText, parse, putFile, getFile, delFile, parseDate, compact, openStored, gunzip, usage, parseWbs, parseProgress, parseTender, parseBoq };
 })();
 
 // Project dashboard: schedule and progress (WBS baseline + progress log), milestones, interfaces,
@@ -427,15 +544,15 @@ window.Dash = (() => {
         paid: i === 8 ? 0 : i === 7 ? Math.round(net * 0.5) : net, paidDate: i === 8 ? '' : `2026-${String(i + 3).padStart(2, '0')}-20` });
     });
     return {
-      project: { name: 'Sample project: 6-storey office building', currency: 'AED', contract: 48000000, retention: 5, dataDate: '2026-10-31' },
+      project: { name: 'Sample project: 6-storey office building', currency: 'AED', contract: 48000000, retention: 5, dataDate: '2026-10-31', employer: 'Sample Properties LLC', contractor: 'Sample Contracting LLC', commencement: '2026-01-05', completion: '2027-06-15', advance: 10, ldRate: 25000, ldPer: 'day', ldCap: 10, dlpMonths: 12, wCost: 50, wTime: 30, wCx: 20 },
       wbs: [
-        { code: '1.0', name: 'Preliminaries and site setup', budget: 3600000, start: '2026-01-05', finish: '2027-03-31' },
-        { code: '2.0', name: 'Substructure and piling', budget: 7200000, start: '2026-01-15', finish: '2026-05-15' },
-        { code: '3.0', name: 'Superstructure (frame)', budget: 11500000, start: '2026-04-01', finish: '2026-12-15' },
-        { code: '4.0', name: 'Envelope and façade', budget: 8400000, start: '2026-07-01', finish: '2027-02-28' },
-        { code: '5.0', name: 'MEP services', budget: 9800000, start: '2026-06-01', finish: '2027-04-30' },
-        { code: '6.0', name: 'Finishes and fit-out', budget: 5500000, start: '2026-10-01', finish: '2027-05-31' },
-        { code: '7.0', name: 'External works', budget: 2000000, start: '2027-03-01', finish: '2027-06-15' },
+        { code: '1.0', name: 'Preliminaries and site setup', budget: 3600000, start: '2026-01-05', finish: '2027-03-31', complexity: 2 },
+        { code: '2.0', name: 'Substructure and piling', budget: 7200000, start: '2026-01-15', finish: '2026-05-15', complexity: 4 },
+        { code: '3.0', name: 'Superstructure (frame)', budget: 11500000, start: '2026-04-01', finish: '2026-12-15', pred: '2.0SS+76', complexity: 4 },
+        { code: '4.0', name: 'Envelope and façade', budget: 8400000, start: '2026-07-01', finish: '2027-02-28', pred: '3.0SS+91', complexity: 5 },
+        { code: '5.0', name: 'MEP services', budget: 9800000, start: '2026-06-01', finish: '2027-04-30', pred: '3.0SS+61', complexity: 5 },
+        { code: '6.0', name: 'Finishes and fit-out', budget: 5500000, start: '2026-10-01', finish: '2027-05-31', pred: '4.0SS+92, 5.0SS+122', complexity: 3 },
+        { code: '7.0', name: 'External works', budget: 2000000, start: '2027-03-01', finish: '2027-06-15', pred: '4.0', complexity: 2 },
       ],
       progress: [
         ['2026-02-28', '1.0', 10], ['2026-04-30', '1.0', 25], ['2026-06-30', '1.0', 40], ['2026-08-31', '1.0', 50], ['2026-10-31', '1.0', 75],
@@ -483,6 +600,20 @@ window.Dash = (() => {
         { no: 'PCO-007', desc: 'Contractor claim for rain delay', value: 180000, days: 12, status: 'Rejected', co: '' },
       ],
       ipcs,
+      boq: [['Preliminaries', 3600000, '1.0'], ['Substructure', 7200000, '2.0'], ['Concrete frame', 11500000, '3.0'], ['Facade and glazing', 8400000, '4.0'], ['Mechanical and electrical services', 9800000, '5.0'], ['Finishes', 5500000, '6.0'], ['External works', 2000000, '7.0']].map(([name, amount, wbs]) => ({ name, amount, wbs })),
+      manpower: (() => {
+        const weeks = ['2026-09-07', '2026-09-14', '2026-09-21', '2026-09-28', '2026-10-05', '2026-10-12', '2026-10-19', '2026-10-26'];
+        const trades = [['Civil and structure', 'Main contractor', [128, 126, 124, 120, 118, 112, 108, 104], 125], ['Façade', 'Façade subcontractor', [14, 18, 22, 26, 24, 28, 30, 32], 40],
+          ['MEP', 'MEP subcontractor', [36, 40, 44, 48, 52, 50, 56, 58], 65], ['Finishes', 'Fit-out subcontractor', [0, 0, 0, 6, 10, 14, 18, 22], 25], ['Staff and supervision', 'Main contractor', [22, 22, 23, 23, 24, 24, 24, 25], 24]];
+        return weeks.flatMap((date, i) => trades.map(([trade, company, c, p]) => ({ date, trade, company, count: c[i], planned: p })));
+      })(),
+      plant: (() => {
+        const weeks = ['2026-09-28', '2026-10-05', '2026-10-12', '2026-10-19', '2026-10-26'];
+        const eq = [['Tower crane', 2, [104, 102, 98, 100, 96], [8, 10, 14, 12, 16], [0, 0, 0, 0, 0]], ['Concrete pump', 1, [30, 34, 28, 32, 26], [18, 14, 20, 16, 22], [0, 0, 8, 0, 0]],
+          ['Mobile crane 50 t', 1, [22, 26, 30, 28, 34], [26, 22, 18, 20, 14], [0, 0, 0, 0, 0]], ['Scissor lift', 4, [150, 160, 170, 176, 182], [42, 32, 22, 16, 10], [0, 0, 0, 12, 0]],
+          ['Excavator', 1, [20, 16, 12, 10, 8], [28, 32, 30, 38, 40], [0, 0, 6, 0, 0]]];
+        return weeks.flatMap((date, i) => eq.map(([equipment, qty, w, id, b]) => ({ date, equipment, qty, working: w[i], idle: id[i], breakdown: b[i], remarks: b[i] ? 'Breakdown repaired' : '' })));
+      })(),
       meetings: [{ id: 'sample-mom-14', ref: 'MOM-14', title: 'Progress meeting No. 14 (sample)', date: '2026-10-14', file: '', size: 0, uploaded: '2026-10-15', counts: { Variation: 1, Decision: 1, 'Critical issue': 1, Action: 1 } }],
       log: [
         { date: '2026-10-14', mom: 'MOM-14', type: 'Variation', critical: 'No', text: 'Client instructed additional EV chargers in the basement; contractor to submit quotation.', owner: 'Contractor', due: '2026-10-28', wbs: '5.0', status: 'Open', meetingId: 'sample-mom-14' },
@@ -509,7 +640,7 @@ window.Dash = (() => {
 
   // Editable tables: [key, label, type, options]; types: t text, n number, d date, m month, s select, w WBS code or party
   const SCHEMA = {
-    wbs: { title: 'WBS baseline', note: 'Budget is the weight of each element. Planned progress runs evenly from start to finish.', cols: [['code', 'WBS code'], ['name', 'Element'], ['budget', 'Budget', 'n'], ['start', 'Baseline start', 'd'], ['finish', 'Baseline finish', 'd']] },
+    wbs: { title: 'WBS baseline', note: 'Budget is the weight of each element; planned progress runs evenly from start to finish. Predecessors drive the CPM schedule: a code alone means finish-to-start; add SS or FF and a lag in days, e.g. 3.0SS+10 or 2.0+5. Separate several with commas.', cols: [['code', 'WBS code'], ['name', 'Element'], ['budget', 'Budget', 'n'], ['start', 'Baseline start', 'd'], ['finish', 'Baseline finish', 'd'], ['pred', 'Predecessors (e.g. 2.0, 3.0SS+10)'], ['complexity', 'Complexity 1-5', 'n']] },
     progress: { title: 'Progress log', note: 'Each entry is the % complete of a WBS element on a date. The latest entry on or before the data date counts.', cols: [['date', 'Date', 'd'], ['code', 'WBS code', 'w'], ['pct', '% complete', 'n']] },
     milestones: { title: 'Milestones', cols: [['id', 'ID'], ['name', 'Milestone'], ['baseline', 'Baseline date', 'd'], ['forecast', 'Forecast date', 'd'], ['actual', 'Actual date', 'd']] },
     costs: { title: 'Actual cost (cumulative, by month)', note: 'Optional. Needed for CPI and the forecast at completion.', cols: [['month', 'Month', 'm'], ['ac', 'Cumulative actual cost', 'n']] },
@@ -518,10 +649,13 @@ window.Dash = (() => {
     payments: { title: 'Other project payments', note: 'Everything paid outside the IPCs: advance, fees, authority and utility charges, owner purchases.', cols: [['date', 'Date', 'd'], ['category', 'Category', 's', PAY_CATS], ['payee', 'Payee'], ['ref', 'Reference'], ['amount', 'Amount', 'n'], ['status', 'Status', 's', ['Paid', 'Pending']]] },
     risks: { title: 'Risk register', cols: [['id', 'ID'], ['title', 'Risk'], ['l', 'Likelihood 1-5', 'n'], ['i', 'Impact 1-5', 'n'], ['owner', 'Owner'], ['status', 'Status', 's', ['Open', 'Watch', 'Closed']]] },
     pcos: { title: 'PCOs and change orders', cols: [['no', 'PCO No.'], ['desc', 'Description'], ['value', 'Value', 'n'], ['days', 'Time (days)', 'n'], ['status', 'Status', 's', ['Potential', 'Submitted', 'Approved', 'Rejected']], ['co', 'CO No.'], ['source', 'Source']] },
+    boq: { title: 'BOQ summary', note: 'Bills or sections of the priced BOQ and the WBS element each one funds.', cols: [['name', 'Bill / section'], ['amount', 'Amount', 'n'], ['wbs', 'WBS code', 'w']] },
+    manpower: { title: 'Manpower log', note: 'Headcount on site by trade for each day or week. Planned headcount is optional and draws the planned line.', cols: [['date', 'Date', 'd'], ['trade', 'Trade / category'], ['company', 'Company'], ['count', 'Headcount', 'n'], ['planned', 'Planned headcount', 'n']] },
+    plant: { title: 'Plant and equipment log', note: 'Hours for each item of plant per day or week.', cols: [['date', 'Date', 'd'], ['equipment', 'Equipment'], ['qty', 'Quantity', 'n'], ['working', 'Working hours', 'n'], ['idle', 'Idle hours', 'n'], ['breakdown', 'Breakdown hours', 'n'], ['remarks', 'Remarks']] },
     log: { title: 'Project log', note: 'Decisions, actions, critical issues and variations. Added automatically from uploaded minutes of meeting, or entered by hand. Items linked to a WBS element appear on the programme chart.', cols: [['date', 'Date', 'd'], ['mom', 'Source (meeting)'], ['type', 'Type', 's', ['Decision', 'Action', 'Variation', 'Critical issue', 'Note']], ['critical', 'Critical', 's', ['No', 'Yes']], ['text', 'Item'], ['owner', 'Owner'], ['due', 'Due', 'd'], ['wbs', 'WBS', 'w'], ['status', 'Status', 's', ['Open', 'Closed']]] },
   };
-  const TABS = [['overview', 'Overview'], ['schedule', 'Schedule & progress'], ['meetings', 'Meetings & decisions'], ['payments', 'Payments'], ['interfaces', 'Interfaces'], ['risks', 'Risks & changes'], ['settings', 'Settings']];
-  const TAB_TABLES = { schedule: ['wbs', 'progress', 'milestones', 'costs'], meetings: ['log'], payments: ['ipcs', 'payments'], interfaces: ['interfaces'], risks: ['risks', 'pcos'], overview: [], settings: [] };
+  const TABS = [['overview', 'Overview'], ['schedule', 'Schedule & progress'], ['meetings', 'Meetings & decisions'], ['resources', 'Manpower & plant'], ['payments', 'Payments'], ['interfaces', 'Interfaces'], ['risks', 'Risks & changes'], ['contract', 'Contract & BOQ'], ['settings', 'Settings']];
+  const TAB_TABLES = { schedule: ['wbs', 'progress', 'milestones', 'costs'], meetings: ['log'], resources: ['manpower', 'plant'], contract: ['boq'], payments: ['ipcs', 'payments'], interfaces: ['interfaces'], risks: ['risks', 'pcos'], overview: [], settings: [] };
 
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const num = v => { const n = parseFloat(String(v ?? '').replace(/,/g, '')); return isFinite(n) ? n : 0; };
@@ -562,8 +696,8 @@ window.Dash = (() => {
       ix.current = projId; writeIndex(ix); savedAt = 'Saved ' + now.toTimeString().slice(0, 5); return true;
     } catch (e) { savedAt = 'Not saved: browser storage is full or blocked. Export your data.'; return false; }
   }
-  function switchTo(id) { const ix = index(); ix.current = id; writeIndex(ix); D = load(); pending = null; queue = []; savedAt = ''; render(); }
-  const blank = (name, currency) => normalize({ project: { name: name || 'New project', currency: currency || 'AED', contract: 0, retention: 5, dataDate: new Date().toISOString().slice(0, 10) }, wbs: [], progress: [], costs: [], milestones: [], interfaces: [], risks: [], pcos: [], ipcs: [], payments: [], log: [], meetings: [] });
+  function switchTo(id) { const ix = index(); ix.current = id; writeIndex(ix); D = load(); syncContract(); pending = null; queue = []; savedAt = ''; render(); }
+  const blank = (name, currency) => normalize({ project: { name: name || 'New project', currency: currency || 'AED', contract: 0, retention: 5, dataDate: new Date().toISOString().slice(0, 10) }, wbs: [], progress: [], costs: [], milestones: [], interfaces: [], risks: [], pcos: [], ipcs: [], payments: [], log: [], meetings: [], manpower: [], plant: [], boq: [] });
   const cur = () => D.project.currency || '';
   function money(n, full) {
     const a = Math.abs(n), sg = n < 0 ? '−' : '';
@@ -608,7 +742,7 @@ window.Dash = (() => {
     const advPaid = sum(D.payments.filter(p => p.category === 'Advance payment' && p.status === 'Paid'), p => p.amount), advRec = sum(D.ipcs, r => r.advance);
     const otherPaid = sum(D.payments.filter(p => p.status === 'Paid'), p => p.amount), otherPend = sum(D.payments.filter(p => p.status === 'Pending'), p => p.amount);
     const open = D.risks.filter(r => r.status !== 'Closed');
-    return { bac, pv, ev, ac, cpi, spi, eac, planned: bac ? pv / bac * 100 : 0, actual: bac ? ev / bac * 100 : 0,
+    return { bac, pv, ev, ac, cpi, spi, eac, ...(() => { const wt = weights(); return { planned: sum(wt.rows, r => r.W * planPct(r.w, t)), actual: sum(wt.rows, r => r.W * actPct(r.w.code, t)) }; })(),
       appr, pend, coVal, coDays, pendVal: sum(pend, p => p.value), contract, revised: contract + coVal,
       msDone: ms.filter(s => s.startsWith('Achieved')).length, msLate: ms.filter(s => /late|Overdue/.test(s)).length,
       cert, net, ipcPaid, ipcOut: net - ipcPaid, retHeld, advPaid, advRec, otherPaid, otherPend, spend: ipcPaid + otherPaid,
@@ -624,6 +758,127 @@ window.Dash = (() => {
   const tbl = (head, rows, right = []) => rows.length ? `<div class="tw"><table class="mini"><thead><tr>${head.map((h, i) => `<th${right.includes(i) ? ' class="r"' : ''}>${h}</th>`).join('')}</tr></thead><tbody>${rows.join('')}</tbody></table></div>` : '<p class="cap">Nothing to show yet.</p>';
   const idxTone = v => !v ? '' : v >= 1 ? 'good' : v >= 0.95 ? 'warn' : 'bad';
 
+  // ---------- CPM (critical path method), recalculated from progress at the data date ----------
+  const dayIso = n => new Date(n * DAY).toISOString().slice(0, 10);
+  function parsePred(s) {
+    return String(s || '').split(/[,;]+/).map(x => x.trim()).filter(Boolean).map(x => {
+      const m = x.match(/^([\w.\-]+?)\s*(FS|SS|FF|SF)?\s*([+-]\s*\d+)?\s*d?$/i);
+      return m ? { code: m[1], type: (m[2] || 'FS').toUpperCase(), lag: m[3] ? parseInt(m[3].replace(/\s/g, ''), 10) : 0 } : null;
+    }).filter(Boolean);
+  }
+  function cpm() {
+    const today = Math.floor(dd() / DAY);
+    const acts = D.wbs.filter(w => isFinite(dt(w.start)) && isFinite(dt(w.finish))).map(w => {
+      const bs = Math.floor(dt(w.start) / DAY), bf = Math.floor(dt(w.finish) / DAY), dur = Math.max(1, bf - bs + 1), pct = actPct(w.code, dd());
+      return { w, code: String(w.code), bs, bf, dur, pct, rem: pct >= 100 ? 0 : Math.max(1, Math.round(dur * (1 - pct / 100))), preds: parsePred(w.pred) };
+    });
+    const by = Object.fromEntries(acts.map(a => [a.code, a])), order = [], state = {};
+    let cycle = false, missing = [];
+    const visit = a => { if (state[a.code] === 2) return; if (state[a.code] === 1) { cycle = true; return; } state[a.code] = 1; for (const p of a.preds) { if (by[p.code]) visit(by[p.code]); else missing.push(p.code); } state[a.code] = 2; order.push(a); };
+    acts.forEach(visit);
+    // Forward pass. Day numbers: ES inclusive, EF exclusive.
+    for (const a of order) {
+      let es = -Infinity;
+      for (const p of a.preds) {
+        const b = by[p.code]; if (!b || b.ES === undefined) continue;
+        es = Math.max(es, p.type === 'SS' ? b.ES + p.lag : p.type === 'FF' ? b.EF + p.lag - a.dur : p.type === 'SF' ? b.ES + p.lag - a.dur : b.EF + p.lag);
+      }
+      if (!isFinite(es)) es = a.bs;
+      if (a.pct >= 100) { a.ES = Math.min(a.bs, today); a.EF = Math.min(a.bs + a.dur, today + 1); a.state = 'done'; }
+      else if (a.pct > 0) { a.ES = Math.min(a.bs, today); a.EF = Math.max(today + 1, a.ES) + a.rem; a.state = 'progress'; }
+      else { a.ES = Math.max(es, today + 1); a.EF = a.ES + a.dur; a.state = 'future'; }
+    }
+    const finish = acts.length ? Math.max(...acts.map(a => a.EF)) : 0;
+    // Backward pass.
+    for (const a of [...order].reverse()) {
+      const eff = a.EF - a.ES; let lf = finish;
+      for (const s of acts) for (const p of s.preds) {
+        if (p.code !== a.code || s.LS === undefined) continue;
+        if (s.state !== 'future' && (p.type === 'FS' || p.type === 'SS')) continue; // successor already started: start links are satisfied
+        lf = Math.min(lf, p.type === 'SS' ? s.LS - p.lag + eff : p.type === 'FF' ? s.LF - p.lag : p.type === 'SF' ? s.LF - p.lag + eff : s.LS - p.lag);
+      }
+      a.LF = lf; a.LS = lf - eff; a.TF = a.state === 'done' ? null : a.LS - a.ES;
+      a.critical = a.state !== 'done' && a.TF <= 0;
+    }
+    const baseFinish = acts.length ? Math.max(...acts.map(a => a.bf)) : 0;
+    return { acts, finish, finishDate: acts.length ? dayIso(finish - 1) : '', baseFinish: acts.length ? dayIso(baseFinish) : '', slip: acts.length ? finish - 1 - baseFinish : 0, cycle, missing: [...new Set(missing)], critical: acts.filter(a => a.critical) };
+  }
+  function cpmTable(c) {
+    return tbl(['Code', 'Activity', 'Dur. (d)', 'Rem. (d)', 'Predecessors', 'Baseline start', 'Baseline finish', 'Early start', 'Early finish', 'Late start', 'Late finish', 'Total float (d)', 'Status'],
+      [...c.acts].sort((a, b) => String(a.code).localeCompare(String(b.code), undefined, { numeric: true })).map(a => `<tr${a.critical ? ' class="crit"' : ''}><td>${esc(a.code)}</td><td>${esc(a.w.name)}</td><td class="r">${a.dur}</td><td class="r">${a.rem}</td><td>${esc(a.w.pred || '—')}</td>
+        <td>${fmtD(dayIso(a.bs))}</td><td>${fmtD(dayIso(a.bf))}</td><td>${fmtD(dayIso(a.ES))}</td><td>${fmtD(dayIso(a.EF - 1))}</td><td>${a.TF === null ? '—' : fmtD(dayIso(a.LS))}</td><td>${a.TF === null ? '—' : fmtD(dayIso(a.LF - 1))}</td>
+        <td class="r">${a.TF === null ? '—' : a.TF}</td><td><span class="tag ${a.state === 'done' ? 'good' : a.critical ? 'bad' : a.TF < 15 ? 'warn' : 'info'}">${a.state === 'done' ? 'Complete' : a.critical ? 'Critical' : a.TF < 15 ? 'Near-critical' : 'Has float'}</span></td></tr>`), [2, 3, 11]);
+  }
+  function drawCpm(el) {
+    const W = el.clientWidth; if (!W) return;
+    const c = cpm(); if (!c.acts.length) { el.style.height = '120px'; return empty(el, 'Add the WBS baseline with dates to calculate the critical path.'); }
+    const acts = [...c.acts].sort((a, b) => String(a.code).localeCompare(String(b.code), undefined, { numeric: true }));
+    const small = W < 560, lw = small ? 60 : 200, rowH = 32, top = 42, H = top + acts.length * rowH + 10;
+    if (Math.abs(el.clientHeight - H) > 1) el.style.height = H + 'px';
+    const t0 = Math.min(...acts.map(a => Math.min(a.bs, a.ES))), t1 = Math.max(...acts.map(a => Math.max(a.bf + 1, a.LF, a.EF)));
+    const x0 = lw + 6, x1 = W - 10, X = d => x0 + (x1 - x0) * (d - t0) / Math.max(1, t1 - t0);
+    let s = '';
+    const a0 = new Date(t0 * DAY), nMon = Math.ceil((t1 - t0) / 30.4) + 1, step = Math.ceil(nMon / (small ? 4 : 14));
+    for (let k = 0; k <= nMon; k++) { const t = Date.UTC(a0.getUTCFullYear(), a0.getUTCMonth() + k, 1) / DAY; if (t > t1) break; const xx = X(t); if (xx < x0) continue; s += `<line x1="${xx}" x2="${xx}" y1="${top - 6}" y2="${H - 4}" stroke="var(--line)"/>`; if (k % step === 0) s += `<text x="${xx + 3}" y="${top - 26}" font-size="11" fill="var(--muted)">${mLabel(t * DAY, false)}</text>`; }
+    acts.forEach((a, i) => {
+      const y = top + i * rowH;
+      s += `<text x="0" y="${y + rowH / 2 + 4}" font-size="12.5" fill="var(--ink)" font-weight="${a.critical ? 700 : 400}">${esc(small ? a.code : (a.code + ' ' + a.w.name).slice(0, 28))}</text>`;
+      s += `<rect x="${X(a.bs)}" y="${y + 5}" width="${Math.max(2, X(a.bf + 1) - X(a.bs))}" height="5" rx="2" fill="var(--c-bl)"><title>${esc(a.code)} baseline ${fmtD(dayIso(a.bs))} – ${fmtD(dayIso(a.bf))}</title></rect>`;
+      const col = a.state === 'done' ? 'var(--good)' : a.critical ? 'var(--bad)' : 'var(--c-ev)';
+      s += `<rect x="${X(a.ES)}" y="${y + 13}" width="${Math.max(2, X(a.EF) - X(a.ES))}" height="13" rx="3" fill="${col}"><title>${esc(a.code)}: early ${fmtD(dayIso(a.ES))} – ${fmtD(dayIso(a.EF - 1))}${a.TF === null ? ' (complete)' : `, late ${fmtD(dayIso(a.LS))} – ${fmtD(dayIso(a.LF - 1))}, total float ${a.TF} d`}</title></rect>`;
+      if (a.TF > 0) s += `<line x1="${X(a.EF)}" x2="${X(a.LF)}" y1="${y + 19.5}" y2="${y + 19.5}" stroke="var(--muted)" stroke-width="1.5" stroke-dasharray="4 3"/><line x1="${X(a.LF)}" x2="${X(a.LF)}" y1="${y + 14}" y2="${y + 25}" stroke="var(--muted)" stroke-width="1.5"/>`;
+      const lab = a.TF === null ? '✓' : a.critical ? 'TF 0' : `TF ${a.TF}`, lx = Math.max(X(a.EF), a.TF > 0 ? X(a.LF) : 0) + 5;
+      if (lx + 36 < x1) s += `<text x="${lx}" y="${y + 24}" font-size="11" font-weight="700" fill="${a.critical ? 'var(--bad)' : 'var(--muted)'}">${lab}</text>`;
+    });
+    const dx = X(Math.floor(dd() / DAY));
+    s += `<line x1="${dx}" x2="${dx}" y1="${top - 6}" y2="${H - 4}" stroke="var(--hv)" stroke-width="2"/><text x="${dx}" y="${top - 9}" font-size="10.5" text-anchor="middle" fill="var(--hvink)" font-weight="700">Data date</text>`;
+    el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" style="height:${H}px">${s}</svg>`;
+  }
+
+  // ---------- manpower and plant ----------
+  function vResources() {
+    const mp = D.manpower, pl = D.plant;
+    const dates = [...new Set(mp.map(r => r.date))].filter(d => isFinite(dt(d))).sort((a, b) => dt(a) - dt(b));
+    const last = dates[dates.length - 1], onDate = d => mp.filter(r => r.date === d);
+    const head = d => sum(onDate(d), r => r.count), plan = d => sum(onDate(d), r => r.planned);
+    const peak = dates.length ? Math.max(...dates.map(head)) : 0, avg = dates.length ? Math.round(sum(dates, head) / dates.length) : 0;
+    const wk = sum(pl, r => r.working), id = sum(pl, r => r.idle), bd = sum(pl, r => r.breakdown), util = wk + id + bd ? wk / (wk + id + bd) * 100 : 0;
+    const eq = [...new Set(pl.map(r => r.equipment))].map(e => { const l = pl.filter(r => r.equipment === e); return { e, w: sum(l, r => r.working), i: sum(l, r => r.idle), b: sum(l, r => r.breakdown), q: Math.max(...l.map(r => num(r.qty))) }; });
+    const maxH = Math.max(1, ...eq.map(x => x.w + x.i + x.b));
+    const plantBars = eq.length ? '<div class="pipe">' + eq.map(x => `<div class="prow wide"><span>${esc(x.e)} <small>(×${x.q})</small></span><div class="track"><div class="stackbar"><i class="st-approved" style="width:${x.w / maxH * 100}%" title="Working ${x.w} h"></i><i class="st-submitted" style="width:${x.i / maxH * 100}%" title="Idle ${x.i} h"></i><i class="st-rejected" style="width:${x.b / maxH * 100}%" title="Breakdown ${x.b} h"></i></div></div><b>${x.w + x.i + x.b ? Math.round(x.w / (x.w + x.i + x.b) * 100) : 0}%</b></div>`).join('') + '</div>' + legend([['pa', 'Working'], ['pe', 'Idle'], ['br', 'Breakdown']]) : '<p class="cap">Add plant entries below.</p>';
+    const latest = last ? onDate(last).map(r => `<tr><td>${esc(r.trade)}</td><td>${esc(r.company)}</td><td class="r">${num(r.count)}</td><td class="r">${num(r.planned) || '—'}</td><td class="r">${num(r.planned) ? (num(r.count) - num(r.planned) > 0 ? '+' : '') + (num(r.count) - num(r.planned)) : '—'}</td></tr>`) : [];
+    return `<div class="kpis">
+      ${kpi('Manpower on site', last ? String(head(last)) : '—', last ? `${fmtD(last)} · planned ${plan(last) || '—'}` : 'add manpower entries', last && plan(last) ? (head(last) >= plan(last) ? 'good' : 'bad') : '')}
+      ${kpi('Peak manpower', String(peak), `average ${avg} over ${dates.length} records`)}
+      ${kpi('Plant utilisation', pct(util), `${wk} working of ${wk + id + bd} hours`, util >= 75 ? 'good' : util >= 60 ? 'warn' : 'bad')}
+      ${kpi('Idle hours', String(id), 'plant on site but not working', id ? 'warn' : 'good')}
+      ${kpi('Breakdown hours', String(bd), `${pl.filter(r => num(r.breakdown) > 0).length} breakdown records`, bd ? 'bad' : 'good')}
+    </div><div class="dgrid">
+      ${card('Manpower histogram', 'Headcount on site by trade; the dashed line is the planned headcount.', `<div class="legend">${[...new Set(mp.map(r => r.trade))].map((t, i) => `<span><i class="lg" style="background:${TRADE_COL[i % TRADE_COL.length]};height:10px"></i>${esc(t)}</span>`).join('')}<span><i class="lg pv"></i>Planned</span></div>` + fig('manpower'), 1)}
+      ${card('Plant utilisation by equipment', 'Working, idle and breakdown hours in the log; % = working ÷ total hours.', plantBars)}
+      ${card(`Manpower by trade${last ? ' on ' + fmtD(last) : ''}`, '', tbl(['Trade', 'Company', 'Actual', 'Planned', 'Variance'], latest, [2, 3, 4]))}
+    </div>`;
+  }
+  const TRADE_COL = ['#0b4fc4', '#ff6b1a', '#0f8a5f', '#8a5cf6', '#c0362c', '#b26a00', '#2aa1b3', '#6b7a99'];
+  function drawManpower(el) {
+    const W = el.clientWidth, H = el.clientHeight; if (!W) return;
+    const mp = D.manpower, dates = [...new Set(mp.map(r => r.date))].filter(d => isFinite(dt(d))).sort((a, b) => dt(a) - dt(b));
+    if (!dates.length) return empty(el, 'Add manpower entries below.');
+    const trades = [...new Set(mp.map(r => r.trade))], small = W < 520, m = { l: 44, r: 12, t: 12, b: 26 };
+    const tot = d => sum(mp.filter(r => r.date === d), r => r.count), pl = d => sum(mp.filter(r => r.date === d), r => r.planned);
+    const max = niceMax(Math.max(...dates.map(d => Math.max(tot(d), pl(d)))));
+    const gw = (W - m.l - m.r) / dates.length, bw = Math.min(46, gw * 0.7), y = v => H - m.b - (H - m.t - m.b) * v / max;
+    let s = yAxis(W, H, m, max, v => Math.round(v));
+    dates.forEach((d, i) => {
+      const cx = m.l + gw * i + gw / 2; let acc = 0;
+      trades.forEach((t, k) => { const v = sum(mp.filter(r => r.date === d && r.trade === t), r => r.count); if (!v) return; s += `<rect x="${cx - bw / 2}" y="${y(acc + v)}" width="${bw}" height="${y(acc) - y(acc + v)}" fill="${TRADE_COL[k % TRADE_COL.length]}"><title>${esc(fmtD(d) + ' · ' + t + ': ' + v)}</title></rect>`; acc += v; });
+      if (i % Math.ceil(dates.length / (small ? 5 : 12)) === 0 || i === dates.length - 1) s += `<text x="${cx}" y="${H - 6}" text-anchor="middle" font-size="11" fill="var(--muted)">${esc(fmtD(d).replace(/ \d\d$/, ''))}</text>`;
+    });
+    const pts = dates.map((d, i) => [m.l + gw * i + gw / 2, pl(d)]).filter(p => p[1] > 0);
+    if (pts.length) s += `<polyline fill="none" stroke="var(--ink)" stroke-width="2" stroke-dasharray="6 4" points="${pts.map(p => p[0] + ',' + y(p[1])).join(' ')}"/>`;
+    el.innerHTML = `<svg viewBox="0 0 ${W} ${H}">${s}</svg>`;
+  }
+
   // ---------- views ----------
   function vOverview() {
     const m = metrics(), c = esc(cur());
@@ -632,6 +887,8 @@ window.Dash = (() => {
       ${kpi('SPI', m.spi ? m.spi.toFixed(2) : '—', m.spi >= 1 ? 'ahead of plan' : 'behind plan', idxTone(m.spi))}
       ${kpi('CPI', m.cpi ? m.cpi.toFixed(2) : '—', m.ac ? (m.cpi >= 1 ? 'under budget' : 'over budget') : 'add actual cost', idxTone(m.cpi))}
       ${kpi(`Forecast EAC (${c})`, m.eac ? money(m.eac) : '—', `budget ${money(m.bac)}`, m.eac ? (m.eac <= m.bac ? 'good' : 'bad') : '')}
+      ${(() => { const c = cpm(); return c.acts.length ? kpi('Forecast completion (CPM)', fmtD(c.finishDate), `baseline ${fmtD(c.baseFinish)} · ${c.slip > 0 ? c.slip + ' days late' : c.slip < 0 ? -c.slip + ' days early' : 'on time'}`, c.slip > 0 ? 'bad' : 'good') : ''; })()}
+      ${ldKpi()}
       ${kpi('Milestones', `${m.msDone} / ${D.milestones.length}`, `${m.msLate} late or at risk`, m.msLate ? 'bad' : 'good')}
       ${kpi(`Revised contract (${c})`, money(m.revised), `${m.appr.length} COs ${m.coVal >= 0 ? '+' : ''}${money(m.coVal)} · ${m.coDays} days`)}
       ${kpi(`Pending PCOs (${c})`, money(m.pendVal), `${m.pend.length} potential or submitted`, m.pend.length ? 'warn' : '')}
@@ -659,11 +916,15 @@ window.Dash = (() => {
       ${kpi('Earned value', money(m.ev), `planned value ${money(m.pv)}`)}
       ${kpi('SPI', m.spi ? m.spi.toFixed(2) : '—', m.spi >= 1 ? 'ahead of plan' : 'behind plan', idxTone(m.spi))}
       ${kpi('CPI', m.cpi ? m.cpi.toFixed(2) : '—', m.ac ? `actual cost ${money(m.ac)}` : 'add actual cost', idxTone(m.cpi))}
+      ${ldKpi()}
       ${kpi('Milestones achieved', `${m.msDone} / ${D.milestones.length}`, `${m.msLate} late or at risk`, m.msLate ? 'bad' : 'good')}
-    </div>${logForm()}<div class="dgrid">
+      ${(() => { const c = cpm(); return c.acts.length ? kpi('Forecast completion (CPM)', fmtD(c.finishDate), `baseline ${fmtD(c.baseFinish)} · ${c.slip > 0 ? c.slip + ' days late' : c.slip < 0 ? -c.slip + ' days early' : 'on time'}`, c.slip > 0 ? 'bad' : 'good') + kpi('Critical activities', String(c.critical.length), c.critical.map(a => a.code).join(', ') || 'none', c.critical.length ? 'warn' : 'good') : ''; })()}
+    </div>${logForm()}${docUpload()}${docPend ? docReview() : ""}<div class="dgrid">
       ${card('Programme: WBS progress and milestones', 'Updates as soon as you change the baseline or log progress.', ganttLegend() + fig('gantt', 'auto'), 1)}
       ${card('S-curve', 'Cumulative planned value from the baseline, earned value from the progress log, and actual cost.', legend([['pv', 'Planned value'], ['ev', 'Earned value'], ['ac', 'Actual cost']]) + fig('scurve'), 1)}
+      ${(() => { const c = cpm(); return card('Critical path (CPM)', `Recalculated from the WBS baseline, predecessors and progress at the data date: completed work is fixed, work in progress finishes after its remaining duration, and work not started cannot start before the data date. Thin grey bar = baseline; coloured bar = early start to early finish (red = critical, blue = has float, green = complete); dashed line = total float to the late finish.${c.cycle ? ' <b>Warning: the predecessors form a loop; check them.</b>' : ''}${c.missing.length ? ' <b>Unknown predecessor codes: ' + esc(c.missing.join(', ')) + '.</b>' : ''}`, legend([['bl', 'Baseline'], ['late', 'Critical'], ['ce', 'Has float'], ['ok', 'Complete'], ['fl', 'Total float']]) + fig('cpm', 'auto') + cpmTable(c), 1); })()}
       ${card('CPI and SPI trend', 'Monthly indices; above 1.00 is good, below 0.95 needs action.', legend([['ev', 'CPI (EV ÷ AC)'], ['ac', 'SPI (EV ÷ PV)'], ['pv', 'Target 1.00']]) + fig('idx', 'sm'), 1)}
+      ${weightCard()}
       ${card('Progress by WBS', `At the data date. Bar = actual %; marker = planned %.`, wbsBars(), 1)}
       ${card('Milestones', 'Variance = actual or forecast date minus baseline (days).', msTable(), 1)}
     </div>`;
@@ -842,6 +1103,224 @@ window.Dash = (() => {
     const v = items.filter(x => x.type === 'Variation');
     momBusy = `Added ${items.length} items from ${ref}${v.length ? `, including ${v.length} PCO(s)` : ''}.${stored && p.file ? ` Stored ${kb(stored)} (original ${kb(p.file.size)}).` : ''}${note}`;
     render(); processNext();
+  }
+
+  // ---------- WBS baseline and contractor progress report uploads ----------
+  let docPend = null, docBusy = '';
+  function docUpload() {
+    return `<section class="card upl"><h3>Update from documents</h3>
+      <p class="cap">Upload the WBS baseline, or the contractor's progress report, as a PDF or a photo. The text is read in your browser; you review the result before it changes the project.</p>
+      <div class="dgrid">
+        <label class="drop" data-drop-kind="wbs"><input type="file" accept=".pdf,image/*,.txt" data-act="wbs-file" hidden><b>Upload WBS baseline</b><span>Code, element, budget, start and finish dates</span></label>
+        <label class="drop" data-drop-kind="prog"><input type="file" accept=".pdf,image/*,.txt" data-act="prog-file" hidden><b>Upload contractor progress report</b><span>Actual % complete per WBS element</span></label>
+      </div>
+      <details class="paste"><summary>Or paste the document text</summary><textarea data-doc-text rows="6" placeholder="Paste the WBS baseline or progress report here"></textarea>
+        <button type="button" class="btn sm" data-act="doc-paste-wbs">Read as WBS baseline</button> <button type="button" class="btn sm" data-act="doc-paste-prog">Read as progress report</button></details>
+      <p class="cap momst" data-msg="doc" role="status">${esc(docBusy)}</p></section>`;
+  }
+  function docReview() {
+    const p = docPend;
+    if (p.kind === 'tender') {
+      const rows = p.rows.map((r, i) => `<tr class="${r.include ? '' : 'off'}"><td><input type="checkbox" data-di="${i}" data-dk="include"${r.include ? ' checked' : ''} aria-label="Use this value"></td><td>${esc(r.label)}</td>
+        <td><input data-di="${i}" data-dk="value"${/date|commencement|completion/i.test(r.key) ? ' type="date"' : ''} value="${esc(r.value)}"></td><td>${esc(D.project[r.key] ?? '—')}</td></tr>`).join('');
+      return `<section class="card review"><h3>Review contract particulars: ${esc(p.fileName)}</h3>
+        <p class="cap">${p.rows.length} particulars found. Correct anything misread and untick what should not change.</p>
+        ${p.rows.length ? `<div class="tw"><table class="ed rv tv"><thead><tr><th>Use</th><th>Particular</th><th>Found in document</th><th>Current value</th></tr></thead><tbody>${rows}</tbody></table></div>` : '<p>No contract particulars were recognised. Paste the form of agreement or appendix to tender text instead.</p>'}
+        <div class="acts"><button type="button" class="btn sm primary" data-act="doc-apply">Apply to contract particulars</button><button type="button" class="btn sm" data-act="doc-discard">Discard</button></div>
+        <details class="xt"><summary>Show the extracted text</summary><pre>${esc(p.text.slice(0, 20000))}</pre></details></section>`;
+    }
+    if (p.kind === 'boq') {
+      const rows = p.rows.map((r, i) => `<tr class="${r.include ? '' : 'off'}"><td><input type="checkbox" data-di="${i}" data-dk="include"${r.include ? ' checked' : ''} aria-label="Use this bill"></td>
+        <td><input data-di="${i}" data-dk="name" value="${esc(r.name)}"></td><td class="r">${r.items}</td><td><input class="r" inputmode="decimal" data-di="${i}" data-dk="amount" value="${esc(r.amount)}"></td>
+        <td><input data-di="${i}" data-dk="wbs" list="dash-wbs3" value="${esc(r.wbs)}" placeholder="new element"></td></tr>`).join('');
+      return `<section class="card review"><h3>Review BOQ: ${esc(p.fileName)}</h3>
+        <p class="cap">${p.rows.length} bills or sections found; total ${money(p.grand, true)}. Map each to a WBS code (left blank = create a new WBS element).</p>
+        ${p.rows.length ? `<div class="tw"><table class="ed rv"><thead><tr><th>Use</th><th>Bill / section</th><th>Items</th><th>Amount</th><th>WBS code</th></tr></thead><tbody>${rows}</tbody></table></div>` : '<p>No bills or priced items were recognised.</p>'}
+        <datalist id="dash-wbs3">${D.wbs.map(w => `<option value="${esc(w.code)}">${esc(w.name)}</option>`).join('')}</datalist>
+        <label class="inl"><input type="checkbox" data-dm="setBudgets"${p.setBudgets ? ' checked' : ''}> Set WBS budgets to the BOQ amounts mapped to them</label>
+        <label class="inl"><input type="checkbox" data-dm="createNew"${p.createNew ? ' checked' : ''}> Create WBS elements for unmapped bills (dates to be added)</label>
+        <label class="inl"><input type="checkbox" data-dm="setContract"${p.setContract ? ' checked' : ''}> Set the contract sum to the BOQ total (${money(p.grand, true)})</label>
+        <div class="acts"><button type="button" class="btn sm primary" data-act="doc-apply">Apply BOQ</button><button type="button" class="btn sm" data-act="doc-discard">Discard</button></div>
+        <details class="xt"><summary>Show the extracted text</summary><pre>${esc(p.text.slice(0, 20000))}</pre></details></section>`;
+    }
+    if (p.kind === 'wbs') {
+      const rows = p.rows.map((r, i) => `<tr class="${r.include ? '' : 'off'}"><td><input type="checkbox" data-di="${i}" data-dk="include"${r.include ? ' checked' : ''} aria-label="Use this row"></td>
+        <td><input data-di="${i}" data-dk="code" value="${esc(r.code)}"></td><td><input data-di="${i}" data-dk="name" value="${esc(r.name)}"></td>
+        <td><input class="r" inputmode="decimal" data-di="${i}" data-dk="budget" value="${esc(r.budget)}"></td><td><input type="date" data-di="${i}" data-dk="start" value="${esc(r.start)}"></td>
+        <td><input type="date" data-di="${i}" data-dk="finish" value="${esc(r.finish)}"></td><td>${D.wbs.some(w => String(w.code) === String(r.code)) ? '<span class="tag info">update</span>' : '<span class="tag good">new</span>'}</td></tr>`).join('');
+      return `<section class="card review"><h3>Review WBS baseline: ${esc(p.fileName)}</h3>
+        <p class="cap">${p.rows.length} WBS rows found. Correct anything misread, then choose how to apply it.</p>
+        ${p.rows.length ? `<div class="tw"><table class="ed rv"><thead><tr><th>Use</th><th>Code</th><th>Element</th><th>Budget</th><th>Start</th><th>Finish</th><th></th></tr></thead><tbody>${rows}</tbody></table></div>` : '<p>No WBS rows were recognised. Each line needs a code such as 1.0 or 2.3 at the start.</p>'}
+        <div class="lrow"><label>Apply as<span class="steps"><label class="chip"><input type="radio" name="wbsmode" data-dm="mode" value="merge"${p.mode !== 'replace' ? ' checked' : ''}><span>Merge: update matching codes, add new</span></label>
+          <label class="chip"><input type="radio" name="wbsmode" data-dm="mode" value="replace"${p.mode === 'replace' ? ' checked' : ''}><span>Replace the whole baseline</span></label></span></label></div>
+        <div class="acts"><button type="button" class="btn sm primary" data-act="doc-apply">Apply to WBS baseline</button><button type="button" class="btn sm" data-act="doc-discard">Discard</button></div>
+        <details class="xt"><summary>Show the extracted text</summary><pre>${esc(p.text.slice(0, 20000))}</pre></details></section>`;
+    }
+    const rows = p.rows.map((r, i) => { const prev = actPct(r.code, dt(p.date) || dd());
+      return `<tr class="${r.include ? '' : 'off'}"><td><input type="checkbox" data-di="${i}" data-dk="include"${r.include ? ' checked' : ''} aria-label="Use this row"></td>
+        <td>${esc(r.code)} ${esc(r.name)}</td><td class="r">${prev}%</td><td><input class="r" inputmode="decimal" data-di="${i}" data-dk="pct" value="${esc(r.pct)}"></td><td><small class="cap">${esc(r.line)}</small></td></tr>`; }).join('');
+    return `<section class="card review"><h3>Review progress report: ${esc(p.fileName)}</h3>
+      <div class="pform"><label>Report date (progress as of)<input type="date" data-dm="date" value="${esc(p.date)}"></label></div>
+      <p class="cap">${p.rows.length} WBS elements found with a % complete. Check each value against the report, then log them as current progress.</p>
+      ${p.rows.length ? `<div class="tw"><table class="ed rv"><thead><tr><th>Use</th><th>WBS element</th><th>Last logged</th><th>Reported % complete</th><th>Line read from the report</th></tr></thead><tbody>${rows}</tbody></table></div>` : '<p>No WBS elements with a % were recognised. Check that the WBS baseline is entered and the report lists WBS codes or names with percentages.</p>'}
+      <label class="inl"><input type="checkbox" data-dm="setDate"${p.setDate !== false ? ' checked' : ''}> Also set the dashboard data date to the report date</label>
+      <div class="acts"><button type="button" class="btn sm primary" data-act="doc-apply">Log as current progress</button><button type="button" class="btn sm" data-act="doc-discard">Discard</button></div>
+      <details class="xt"><summary>Show the extracted text</summary><pre>${esc(p.text.slice(0, 20000))}</pre></details></section>`;
+  }
+  function setDocMsg() { const m = root && root.querySelector('[data-msg="doc"]'); if (m) m.textContent = docBusy; }
+  function readDoc(kind, text, fileName) {
+    if (kind === 'tender') {
+      const f = Mom.parseTender(text), rows = TENDER_FIELDS.filter(([k]) => f[k]).map(([k, label]) => ({ include: true, key: k, label, value: f[k] }));
+      docPend = { kind, text, fileName, rows };
+      docBusy = `${rows.length} contract particulars found in ${fileName}. Review them below.`;
+    } else if (kind === 'boq') {
+      const r = Mom.parseBoq(text, D.wbs);
+      docPend = Object.assign(r, { kind, text, fileName, setBudgets: true, createNew: true, setContract: false });
+      docBusy = `${r.rows.length} bills or sections found in ${fileName} (total ${money(r.grand, true)}). Review the WBS mapping below.`;
+    } else {
+      const r = kind === 'wbs' ? Mom.parseWbs(text) : Mom.parseProgress(text, D.wbs);
+      docPend = Object.assign(r, { kind, text, fileName, mode: 'merge', setDate: true });
+      docBusy = `${r.rows.length} ${kind === 'wbs' ? 'WBS rows' : 'progress values'} found in ${fileName}. Review them below.`;
+    }
+    tab = kind === 'tender' || kind === 'boq' ? 'contract' : 'schedule'; render();
+  }
+  const TENDER_FIELDS = [['name', 'Project name'], ['employer', 'Employer / client'], ['contractor', 'Contractor'], ['currency', 'Currency'], ['contract', 'Contract sum'],
+    ['commencement', 'Commencement date'], ['completion', 'Completion date'], ['periodDays', 'Time for completion (days)'], ['retention', 'Retention %'], ['advance', 'Advance payment %'],
+    ['ldRate', 'Liquidated damages rate'], ['ldPer', 'LDs per'], ['ldCap', 'LD cap % of contract'], ['dlpMonths', 'Defects liability period (months)']];
+  const P_NUM = ['contract', 'retention', 'wCost', 'wTime', 'wCx', 'periodDays', 'advance', 'ldRate', 'ldCap', 'dlpMonths'];
+
+  // ---------- contract particulars flow into every section ----------
+  function syncContract() {
+    const p = D.project;
+    const up = (id, name, date, actual) => {
+      if (!date) return;
+      let m = D.milestones.find(x => x.id === id);
+      if (!m) { m = { id, name, baseline: date, forecast: '', actual: '' }; D.milestones.push(m); } else { m.name = name; m.baseline = date; }
+      if (actual !== undefined) m.actual = actual;
+    };
+    up('C-START', 'Contract commencement', p.commencement, p.commencement && dt(p.commencement) <= dd() ? p.commencement : '');
+    up('C-END', 'Contract completion', p.completion);
+    if (p.completion && num(p.dlpMonths)) { const d = new Date(dt(p.completion)); d.setUTCMonth(d.getUTCMonth() + num(p.dlpMonths)); up('C-DLP', 'End of defects liability period', d.toISOString().slice(0, 10)); }
+    D.milestones.sort((a, b) => dt(a.baseline) - dt(b.baseline));
+  }
+  // The contract completion milestone always carries the CPM forecast.
+  function syncForecast() {
+    const m = D.milestones.find(x => x.id === 'C-END'); if (!m || m.actual) return;
+    const c = cpm(); if (c.acts.length) m.forecast = c.finishDate;
+  }
+  function ldExposure() {
+    const p = D.project; if (!p.completion || !num(p.ldRate)) return null;
+    const c = cpm(); if (!c.acts.length) return null;
+    const late = Math.max(0, Math.round((dt(c.finishDate) - dt(p.completion)) / DAY)), units = p.ldPer === 'week' ? Math.ceil(late / 7) : late;
+    const raw = units * num(p.ldRate), cap = num(p.ldCap) ? num(p.contract) * num(p.ldCap) / 100 : Infinity;
+    return { late, amount: Math.min(raw, cap), capped: raw > cap, cap, forecast: c.finishDate };
+  }
+  function ldKpi() {
+    const e = ldExposure(); if (!e) return '';
+    return kpi(`Delay penalty exposure (${esc(cur())})`, money(e.amount), e.late ? `${e.late} days late vs contract completion ${fmtD(D.project.completion)}${e.capped ? ' · at the LD cap' : ''}` : `on time for ${fmtD(D.project.completion)}`, e.late ? 'bad' : 'good');
+  }
+
+  // ---------- weightage of sub-works: cost, duration and complexity ----------
+  function weights() {
+    const a = num(D.project.wCost ?? 50), b = num(D.project.wTime ?? 30), g = num(D.project.wCx ?? 20), S = a + b + g || 1;
+    const rows = D.wbs.map(w => {
+      const T = isFinite(dt(w.start)) && isFinite(dt(w.finish)) ? Math.max(1, Math.round((dt(w.finish) - dt(w.start)) / DAY) + 1) : 0;
+      const K = Math.min(5, Math.max(1, num(w.complexity) || 3));
+      return { w, C: num(w.budget), T, K, KT: K * T };
+    });
+    const sc = sum(rows, r => r.C) || 1, st = sum(rows, r => r.T) || 1, sk = sum(rows, r => r.KT) || 1;
+    rows.forEach(r => { r.c = r.C / sc; r.t = r.T / st; r.k = r.KT / sk; r.W = (a * r.c + b * r.t + g * r.k) / S; });
+    return { rows, a, b, g };
+  }
+  function weightCard() {
+    const { rows, a, b, g } = weights(), t = dd();
+    const tr = rows.map(r => { const ap = actPct(r.w.code, t); return `<tr><td>${esc(r.w.code)}</td><td>${esc(r.w.name)}</td><td class="r">${money(r.C)} <small class="cap">${(r.c * 100).toFixed(1)}%</small></td><td class="r">${r.T} <small class="cap">${(r.t * 100).toFixed(1)}%</small></td><td class="r">${r.K}</td><td class="r">${(r.k * 100).toFixed(1)}%</td><td class="r"><b>${(r.W * 100).toFixed(1)}%</b></td><td class="r">${ap}%</td><td class="r">${(r.W * ap).toFixed(1)}%</td></tr>`; });
+    const tot = sum(rows, r => r.W * actPct(r.w.code, t)), planned = sum(rows, r => r.W * planPct(r.w, t));
+    tr.push(`<tr class="tot"><td></td><td>Total</td><td class="r">${money(sum(rows, r => r.C))}</td><td class="r">${sum(rows, r => r.T)}</td><td></td><td class="r">100%</td><td class="r">100%</td><td></td><td class="r">${tot.toFixed(1)}%</td></tr>`);
+    return card('Weightage of sub-works', `Each WBS element's share of the whole programme combines its cost, its duration in days and the complexity of its scope. The weighted progress (${tot.toFixed(1)}% actual against ${planned.toFixed(1)}% planned) is the overall progress shown in the KPIs.`,
+      `<div class="formula">W<sub>i</sub> = [ α · C<sub>i</sub>/ΣC + β · T<sub>i</sub>/ΣT + γ · (K<sub>i</sub>·T<sub>i</sub>)/Σ(K·T) ] ÷ (α + β + γ)</div>
+      <p class="cap">C = cost (budget), T = duration in days from the baseline, K = complexity of scope from 1 (simple) to 5 (very complex), so K·T measures complexity-days. Overall progress = Σ W<sub>i</sub> × % complete<sub>i</sub>. Set the factors to match how your organisation weighs work:</p>
+      <div class="pform wf"><label>α cost factor<input data-p="wCost" inputmode="decimal" value="${a}"></label><label>β duration factor<input data-p="wTime" inputmode="decimal" value="${b}"></label><label>γ complexity factor<input data-p="wCx" inputmode="decimal" value="${g}"></label></div>
+      ${tbl(['Code', 'Element', 'Cost (share)', 'Days (share)', 'Complexity K', 'K·T share', 'Weight W', 'Actual %', 'W × actual'], tr, [2, 3, 4, 5, 6, 7, 8])}`, 1);
+  }
+
+  // ---------- contract particulars and BOQ ----------
+  function vContract() {
+    const p = D.project, c = esc(cur()), boqTotal = sum(D.boq, r => r.amount);
+    const fld = (k, label, type) => `<label>${label}<input data-p="${k}"${type ? ` type="${type}"` : P_NUM.includes(k) ? ' inputmode="decimal"' : ''} value="${esc(p[k] ?? '')}"></label>`;
+    const byW = {}; for (const r of D.boq) if (r.wbs) byW[r.wbs] = (byW[r.wbs] || 0) + num(r.amount);
+    const rows = D.boq.map(r => `<tr><td>${esc(r.name)}</td><td class="r">${money(num(r.amount), true)}</td><td class="r">${boqTotal ? (num(r.amount) / boqTotal * 100).toFixed(1) : 0}%</td><td>${r.wbs ? esc(wbsLabel(r.wbs)) : '<span class="tag warn">not mapped</span>'}</td></tr>`);
+    if (rows.length) rows.push(`<tr class="tot"><td>Total</td><td class="r">${money(boqTotal, true)}</td><td class="r">100%</td><td></td></tr>`);
+    const gap = num(p.contract) - boqTotal;
+    return `<div class="kpis">
+      ${kpi(`Contract sum (${c})`, money(num(p.contract)), p.employer ? esc(p.employer) : 'set below or upload the contract')}
+      ${kpi(`BOQ total (${c})`, boqTotal ? money(boqTotal) : '—', boqTotal ? (Math.abs(gap) < 1 ? 'matches the contract sum' : `${gap > 0 ? 'below' : 'above'} contract sum by ${money(Math.abs(gap))}`) : 'upload the BOQ', boqTotal ? (Math.abs(gap) < 1 ? 'good' : 'warn') : '')}
+      ${kpi('Contract period', p.commencement && p.completion ? `${Math.round((dt(p.completion) - dt(p.commencement)) / DAY)} days` : '—', p.commencement ? `${fmtD(p.commencement)} → ${fmtD(p.completion)}` : 'commencement not set')}
+      ${ldKpi()}
+      ${kpi('Liquidated damages', num(p.ldRate) ? `${money(num(p.ldRate))}/${esc(p.ldPer || 'day')}` : '—', num(p.ldCap) ? `capped at ${num(p.ldCap)}% (${money(num(p.contract) * num(p.ldCap) / 100)})` : 'no cap recorded')}
+    </div>
+    <section class="card upl"><h3>Set up from tender and contract documents</h3>
+      <p class="cap">Upload the tender or contract document (form of agreement, particular conditions, appendix to tender) to fill the contract particulars, and the priced BOQ to set WBS budgets. Files are read in your browser; you review everything before it is applied.</p>
+      <div class="dgrid">
+        <label class="drop" data-drop-kind="tender"><input type="file" accept=".pdf,image/*,.txt" data-act="tender-file" hidden><b>Upload tender / contract document</b><span>Contract sum, dates, retention, advance, LDs, defects period</span></label>
+        <label class="drop" data-drop-kind="boq"><input type="file" accept=".pdf,image/*,.txt" data-act="boq-file" hidden><b>Upload priced BOQ</b><span>Bills and section totals, mapped to the WBS</span></label>
+      </div>
+      <details class="paste"><summary>Or paste the document text</summary><textarea data-doc-text rows="6" placeholder="Paste the contract particulars or the BOQ here"></textarea>
+        <button type="button" class="btn sm" data-act="doc-paste-tender">Read as tender / contract</button> <button type="button" class="btn sm" data-act="doc-paste-boq">Read as BOQ</button></details>
+      <p class="cap momst" data-msg="doc" role="status">${esc(docBusy)}</p></section>
+    ${docPend && (docPend.kind === 'tender' || docPend.kind === 'boq') ? docReview() : ''}
+    <div class="dgrid">
+      ${card('Contract particulars', 'Edit directly or fill from the contract document above.', `<div class="pform">${fld('employer', 'Employer / client')}${fld('contractor', 'Contractor')}${fld('contract', 'Contract sum')}${fld('currency', 'Currency')}
+        ${fld('commencement', 'Commencement date', 'date')}${fld('completion', 'Completion date', 'date')}${fld('retention', 'Retention %')}${fld('advance', 'Advance payment %')}
+        ${fld('ldRate', 'LD rate')}<label>LDs per<select data-p="ldPer">${['day', 'week'].map(o => `<option${(p.ldPer || 'day') === o ? ' selected' : ''}>${o}</option>`).join('')}</select></label>${fld('ldCap', 'LD cap %')}${fld('dlpMonths', 'Defects period (months)')}</div>`, 1)}
+      ${card('BOQ summary by bill', 'Each bill or section of the priced BOQ, its share of the total and the WBS element it funds.', tbl(['Bill / section', 'Amount', 'Share', 'WBS element'], rows, [1, 2]), 1)}
+    </div>`;
+  }
+  async function processDoc(kind, file) {
+    if (busy) return; busy = true; docBusy = `Reading ${file.name}…`; setDocMsg();
+    try { const text = await Mom.extractText(file, s => { docBusy = `${file.name}: ${s}`; setDocMsg(); }); busy = false; readDoc(kind, text, file.name); }
+    catch (err) { busy = false; docBusy = `${file.name}: ${err && err.message ? err.message : 'could not be read'}`; setDocMsg(); }
+  }
+  function applyDoc() {
+    const p = docPend; if (!p) return;
+    const rows = p.rows.filter(r => r.include);
+    if (p.kind === 'tender') {
+      for (const r of rows) D.project[r.key] = P_NUM.includes(r.key) ? num(r.value) : r.value;
+      syncContract();
+      docBusy = `Applied ${rows.length} contract particulars from ${p.fileName}.`;
+      docPend = null; save(); render(); return;
+    }
+    if (p.kind === 'boq') {
+      const next = () => { const n = Math.max(0, ...D.wbs.map(w => parseInt(w.code, 10) || 0)) + 1; return n + '.0'; };
+      const sums = {}; let created = 0;
+      for (const r of rows) {
+        let code = String(r.wbs || '').trim();
+        if (!code && p.createNew) { code = next(); D.wbs.push({ code, name: r.name, budget: 0, start: '', finish: '', pred: '', complexity: 3 }); r.wbs = code; created++; }
+        if (code) sums[code] = (sums[code] || 0) + num(r.amount);
+      }
+      if (p.setBudgets) for (const [code, v] of Object.entries(sums)) { const w = D.wbs.find(x => String(x.code) === code); if (w) w.budget = v; }
+      if (p.setContract && p.grand) D.project.contract = p.grand;
+      D.boq = rows.map(r => ({ name: r.name, amount: num(r.amount), wbs: r.wbs || '' }));
+      docBusy = `BOQ applied: ${rows.length} bills, ${Object.keys(sums).length} WBS budgets set${created ? `, ${created} new WBS elements created (add their dates on the Schedule & progress tab)` : ''}.`;
+      docPend = null; save(); render(); return;
+    }
+    if (p.kind === 'wbs') {
+      const clean = rows.map(r => ({ code: String(r.code).trim(), name: String(r.name).trim(), budget: num(r.budget), start: r.start, finish: r.finish })).filter(r => r.code);
+      if (p.mode === 'replace') D.wbs = clean;
+      else for (const r of clean) { const ex = D.wbs.find(w => String(w.code) === r.code); if (ex) Object.assign(ex, Object.fromEntries(Object.entries(r).filter(([k, v]) => v !== '' && v !== 0 || k === 'code'))); else D.wbs.push(r); }
+      D.wbs.sort((a, b) => String(a.code).localeCompare(String(b.code), undefined, { numeric: true }));
+      docBusy = `WBS baseline ${p.mode === 'replace' ? 'replaced' : 'updated'}: ${clean.length} rows from ${p.fileName}.`;
+    } else {
+      const date = p.date || D.project.dataDate;
+      for (const r of rows) {
+        const ex = D.progress.find(x => String(x.code) === String(r.code) && x.date === date), pct = Math.max(0, Math.min(100, num(r.pct)));
+        if (ex) ex.pct = pct; else D.progress.push({ date, code: r.code, pct });
+      }
+      D.progress.sort((a, b) => dt(a.date) - dt(b.date) || String(a.code).localeCompare(String(b.code)));
+      if (p.setDate !== false && p.date) D.project.dataDate = p.date;
+      docBusy = `Logged ${rows.length} progress values as of ${fmtD(date)} from ${p.fileName}.`;
+    }
+    docPend = null; save(); render();
   }
 
   // ---------- pieces ----------
@@ -1053,7 +1532,7 @@ window.Dash = (() => {
     const x = i => m.l + (ms.length === 1 ? (W - m.l - m.r) / 2 : (W - m.l - m.r) * i / (ms.length - 1)), y = v => H - m.b - (H - m.t - m.b) * v / max;
     el.innerHTML = `<svg viewBox="0 0 ${W} ${H}">${yAxis(W, H, m, max)}${lineSeries(all, x, y, 'var(--c-ac)')}${lineSeries(net, x, y, 'var(--c-ev)')}${lineSeries(paid, x, y, 'var(--c-pa)')}${xLabels(ms, x, H, small)}</svg>`;
   }
-  const CHARTS = { scurve: drawScurve, idx: drawIdx, gantt: drawGantt, ipc: drawIpc, cash: drawCash };
+  const CHARTS = { scurve: drawScurve, idx: drawIdx, gantt: drawGantt, ipc: drawIpc, cash: drawCash, cpm: drawCpm, manpower: drawManpower };
 
   // ---------- editors ----------
   function editor(k) {
@@ -1075,12 +1554,12 @@ window.Dash = (() => {
   }
 
   // ---------- render ----------
-  const VIEWS = { overview: vOverview, schedule: vSchedule, meetings: vMeetings, payments: vPayments, interfaces: vInterfaces, risks: vRisks, settings: vSettings };
+  const VIEWS = { overview: vOverview, schedule: vSchedule, meetings: vMeetings, resources: vResources, contract: vContract, payments: vPayments, interfaces: vInterfaces, risks: vRisks, settings: vSettings };
   function drawCharts() {
     ros.forEach(r => r.disconnect()); ros = [];
     root.querySelectorAll('[data-chart]').forEach(el => { const f = CHARTS[el.dataset.chart]; let w = 0; const ro = new ResizeObserver(() => { if (el.clientWidth !== w) { w = el.clientWidth; f(el); } }); ro.observe(el); ros.push(ro); f(el); });
   }
-  function refresh() { const v = root.querySelector('.dview'); if (v) { v.innerHTML = VIEWS[tab](); drawCharts(); } root.querySelector('.dhead').innerHTML = head(); }
+  function refresh() { syncForecast(); const v = root.querySelector('.dview'); if (v) { v.innerHTML = VIEWS[tab](); drawCharts(); } root.querySelector('.dhead').innerHTML = head(); }
   const isSample = () => JSON.stringify(D) === JSON.stringify(sample());
   function projectBar() {
     const ix = index();
@@ -1095,6 +1574,7 @@ window.Dash = (() => {
   }
   const head = () => `${projectBar()}<h1>${esc(D.project.name || 'Project dashboard')}</h1><p class="lede">Data date ${fmtD(D.project.dataDate)} · Contract ${esc(cur())} ${money(num(D.project.contract), true)}${isSample() ? ' · <em>sample data: replace it with your project in each tab\'s edit sections</em>' : ''}</p>`;
   function render() {
+    syncForecast();
     root.innerHTML = `<div class="dhead">${head()}</div>
       <div class="dtabs" role="tablist">${TABS.map(([k, l]) => `<button type="button" role="tab" data-tab="${k}" aria-selected="${tab === k}">${l}</button>`).join('')}</div>
       <div class="dview">${VIEWS[tab]()}</div><div class="dedit">${TAB_TABLES[tab].map(editor).join('')}</div>`;
@@ -1102,7 +1582,7 @@ window.Dash = (() => {
   }
 
   function setVal(t) {
-    if (t.dataset.p) { D.project[t.dataset.p] = ['contract', 'retention'].includes(t.dataset.p) ? num(t.value) : t.value; save(); return true; }
+    if (t.dataset.p) { D.project[t.dataset.p] = P_NUM.includes(t.dataset.p) ? num(t.value) : t.value; if (['commencement', 'completion', 'dlpMonths'].includes(t.dataset.p)) syncContract(); save(); return true; }
     if (t.dataset.t) { const col = SCHEMA[t.dataset.t].cols.find(c => c[0] === t.dataset.k); D[t.dataset.t][+t.dataset.i][t.dataset.k] = col[2] === 'n' ? num(t.value) : t.value; save(); return true; }
     return false;
   }
@@ -1118,10 +1598,18 @@ window.Dash = (() => {
     }
     return false;
   }
-  function onInput(e) { if (!setPending(e.target)) setVal(e.target); }
+  function setDoc(t) {
+    if (!docPend) return false;
+    if (t.dataset.dm) { docPend[t.dataset.dm] = t.type === "checkbox" ? t.checked : t.value; return true; }
+    if (t.dataset.dk) { const r = docPend.rows[+t.dataset.di], k = t.dataset.dk; r[k] = k === "include" ? t.checked : t.value; if (k === "include") t.closest("tr").classList.toggle("off", !t.checked); return true; }
+    return false;
+  }
+  function onInput(e) { if (!setPending(e.target) && !setDoc(e.target)) setVal(e.target); }
   function onChange(e) {
     const t = e.target;
-    if (setPending(t)) return;
+    if (setPending(t) || setDoc(t)) return;
+    const KIND = { 'wbs-file': 'wbs', 'prog-file': 'prog', 'tender-file': 'tender', 'boq-file': 'boq' };
+    if (KIND[t.dataset.act] && t.files.length) { const f = t.files[0]; t.value = ''; processDoc(KIND[t.dataset.act], f); return; }
     if (t.dataset.act === 'proj-switch') { switchTo(t.value); return; }
     if (t.dataset.act === 'mom-file' && t.files.length) { queue.push(...t.files); t.value = ''; processNext(); setMomMsg(); return; }
     if (t.dataset.act === 'import' && t.files[0]) {
@@ -1158,6 +1646,9 @@ window.Dash = (() => {
       momBusy = `${p.items.length} items found in the pasted text. Review them below.`; render(); return;
     }
     if (a === 'mom-save') { commitPending(); return; }
+    if (a && a.startsWith('doc-paste-')) { const ta = root.querySelector('[data-doc-text]'), txt = ta ? ta.value.trim() : ''; if (!txt) { docBusy = 'Paste the document text first.'; setDocMsg(); return; } readDoc(a.slice(10), txt, 'Pasted text'); return; }
+    if (a === 'doc-apply') { applyDoc(); return; }
+    if (a === 'doc-discard') { docPend = null; docBusy = 'Discarded.'; render(); return; }
     if (a === 'mom-discard') { pending = null; momBusy = 'Discarded.'; render(); processNext(); return; }
     if (a === 'mom-open') { Mom.openStored(b.dataset.id).catch(err => { momBusy = err.message; setMomMsg(); }); return; }
     if (a === 'mom-del') {
@@ -1199,11 +1690,13 @@ window.Dash = (() => {
 
   return {
     mount(el) {
-      root = el; D = load();
+      root = el; D = load(); syncContract();
       el.addEventListener('input', onInput); el.addEventListener('change', onChange); el.addEventListener('click', onClick);
       el.addEventListener('submit', onSubmit); el.addEventListener('toggle', onToggle, true);
       el.addEventListener('dragover', e => { const z = e.target.closest('[data-drop]'); if (z) { e.preventDefault(); z.classList.add('over'); } });
       el.addEventListener('dragleave', e => { const z = e.target.closest('[data-drop]'); if (z) z.classList.remove('over'); });
+      el.addEventListener('dragover', e => { const z = e.target.closest('[data-drop-kind]'); if (z) { e.preventDefault(); z.classList.add('over'); } });
+      el.addEventListener('drop', e => { const k = e.target.closest('[data-drop-kind]'); if (k) { e.preventDefault(); k.classList.remove('over'); if (e.dataTransfer.files[0]) processDoc(k.dataset.dropKind, e.dataTransfer.files[0]); return; } });
       el.addEventListener('drop', e => { const z = e.target.closest('[data-drop]'); if (!z) return; e.preventDefault(); z.classList.remove('over'); if (e.dataTransfer.files.length) { queue.push(...e.dataTransfer.files); processNext(); setMomMsg(); } });
       render();
     },
