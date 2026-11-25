@@ -256,6 +256,7 @@ table.mintbl td:first-child{font-weight:700;white-space:nowrap}table.mintbl td:n
 .vals .owe{color:var(--bad);font-weight:700}.vals .clear{color:var(--good);font-weight:700}
 .vals.ipcref{margin-top:4px;padding:6px 10px 6px 18px;background:var(--th);border-radius:6px;margin-left:18px;flex-basis:calc(100% - 18px)}
 .trail>summary .vals{order:10}
+.dfig.tall{min-height:360px}.lg.ctr{background:repeating-linear-gradient(90deg,var(--ink) 0 7px,transparent 7px 11px)}
 
 </style>
 <script>new MutationObserver(()=>{for(const c of document.querySelectorAll('.stack td:not([data-l])')){let i=0,p=c;while(p=p.previousElementSibling)i+=p.colSpan;c.dataset.l=c.closest('table').rows[0].cells[i]?.textContent||''}}).observe(document,{childList:true,subtree:true})</script>
@@ -1165,7 +1166,7 @@ window.Dash = (() => {
       <details class="paste"><summary>Or paste the invoice text</summary><textarea data-inv-text rows="6" placeholder="Paste the invoice here"></textarea><button type="button" class="btn sm" data-act="inv-paste">Add from text</button></details></section>
     <div class="dgrid">
       ${card('IPCs by period', `Certified (gross), net payable and paid (${c}).`, legend([['ap', 'Certified'], ['ce', 'Net payable'], ['pa', 'Paid']]) + fig('ipc'), 1)}
-      ${card('Cumulative cash flow', `IPC net payable vs paid, plus other project payments (${c}).`, legend([['ev', 'IPC net payable'], ['ok2', 'IPC paid'], ['ac', 'All project payments paid']]) + fig('cash'), 1)}
+      ${card('Progress towards the contract value', `Cumulative gross certified, IPC by IPC, climbing towards the contract sum (${c}). Planned = WBS baseline scaled to the revised contract; paid includes VAT.`, legend([['ev', 'Certified to date (gross)'], ['pv', 'Planned'], ['ok2', 'Paid to date'], ['ctr', 'Contract value']]) + fig('cash', 'tall'), 1)}
       ${card('IPC register', '', tbl(['IPC', 'Period', 'Certified', 'Retention', 'Advance rec.', 'Net', 'Paid', 'Outstanding', 'Status', 'Checks', ''], ipcRows, [2, 3, 4, 5, 6, 7]), 1)}
             ${ipcsCard()}
       ${invoicesCard()}
@@ -2121,20 +2122,36 @@ window.Dash = (() => {
     });
     el.innerHTML = `<svg viewBox="0 0 ${W} ${H}">${yAxis(W, H, m, max)}${s}</svg>`;
   }
+  // Cumulative certification climbing towards the contract value.
   function drawCash(el) {
     const W = el.clientWidth, H = el.clientHeight; if (!W) return;
-    const ts = [...D.ipcs.map(r => dt(r.period)), ...D.payments.map(p => dt(p.date))].filter(isFinite);
-    if (!ts.length) return empty(el, 'Add IPCs or payments below.');
-    const a = new Date(Math.min(...ts)), b = new Date(Math.max(...ts, dd())), ms = [];
-    for (let k = 0; ; k++) { const t = monthEnd(a.getUTCFullYear(), a.getUTCMonth() + k); ms.push(t); if (t >= b.getTime() || k > 240) break; }
-    const ipcBy = t => D.ipcs.filter(r => monthEnd(new Date(dt(r.period)).getUTCFullYear(), new Date(dt(r.period)).getUTCMonth()) <= t);
-    const net = ms.map((t, i) => [i, sum(ipcBy(t), r => ipcNetV(r) + num(r.vat))]);
-    const paid = ms.map((t, i) => [i, sum(D.ipcs.filter(r => r.paidDate && dt(r.paidDate) <= t), r => r.paid)]);
-    const all = ms.map((t, i) => [i, paid[i][1] + sum(D.payments.filter(p => p.status === 'Paid' && dt(p.date) <= t), p => p.amount)]);
-    if (!all.some(q => q[1]) && !net.some(q => q[1])) return empty(el, 'No IPC or payment amounts yet.');
-    const small = W < 520, m = { l: 58, r: 28, t: 12, b: 26 }, max = niceMax(Math.max(...all.map(q => q[1]), ...net.map(q => q[1]), 1));
+    const contract = num(D.project.contract), revised = contract + sum(D.pcos.filter(p => p.status === 'Approved'), p => p.value);
+    const ts = [...D.ipcs.map(r => dt(r.period)), ...D.ipcs.map(r => dt(r.paidDate)), dt(D.project.commencement), dt(D.project.completion), ...D.wbs.flatMap(w => [dt(w.start), dt(w.finish)])].filter(isFinite);
+    if (!ts.length) return empty(el, 'Add IPCs, or the contract dates on the Contract & BOQ tab.');
+    const a0 = new Date(Math.min(...ts)), b0 = new Date(Math.max(...ts, dd())), ms = [];
+    for (let k = 0; ; k++) { const t = monthEnd(a0.getUTCFullYear(), a0.getUTCMonth() + k); ms.push(t); if (t >= b0.getTime() || k > 240) break; }
+    const mEnd = s0 => { const d = new Date(dt(s0)); return monthEnd(d.getUTCFullYear(), d.getUTCMonth()); };
+    const lastIpc = Math.max(0, ...D.ipcs.map(r => mEnd(r.period)).filter(isFinite)), lastPaid = Math.max(0, ...D.ipcs.filter(r => r.paidDate).map(r => dt(r.paidDate)));
+    const cert = ms.map((t, i) => t <= lastIpc ? [i, sum(D.ipcs.filter(r => mEnd(r.period) <= t), r => r.certified)] : null);
+    const paid = ms.map((t, i) => t <= Math.max(lastPaid, lastIpc) ? [i, sum(D.ipcs.filter(r => r.paidDate && dt(r.paidDate) <= t), r => r.paid)] : null);
+    const bac = sum(D.wbs, w => w.budget), scale = bac && revised ? revised / bac : 1;
+    const plan = D.wbs.length ? ms.map((t, i) => [i, PV(t) * scale]) : [];
+    const top = Math.max(revised, contract, ...cert.filter(Boolean).map(q => q[1]), ...paid.filter(Boolean).map(q => q[1]), ...plan.map(q => q[1]), 1);
+    const small = W < 520, m = { l: 58, r: small ? 12 : 150, t: 14, b: 26 }, max = niceMax(top * 1.04);
     const x = i => m.l + (ms.length === 1 ? (W - m.l - m.r) / 2 : (W - m.l - m.r) * i / (ms.length - 1)), y = v => H - m.b - (H - m.t - m.b) * v / max;
-    el.innerHTML = `<svg viewBox="0 0 ${W} ${H}">${yAxis(W, H, m, max)}${lineSeries(all, x, y, 'var(--c-ac)')}${lineSeries(net, x, y, 'var(--c-ev)')}${lineSeries(paid, x, y, 'var(--c-pa)')}${xLabels(ms, x, H, small)}</svg>`;
+    let s1 = yAxis(W, H, m, max);
+    const ref = (v, label, col, dy) => v ? `<line x1="${m.l}" x2="${W - m.r}" y1="${y(v)}" y2="${y(v)}" stroke="${col}" stroke-width="1.6" stroke-dasharray="7 5"/>${small ? '' : `<text x="${W - m.r + 6}" y="${y(v) + 4 + dy}" font-size="11.5" font-weight="700" fill="${col}">${label}</text><text x="${W - m.r + 6}" y="${y(v) + 18 + dy}" font-size="11" fill="var(--muted)">${money(v)}</text>`}` : '';
+    const sameRef = Math.abs(revised - contract) < Math.max(1, contract * 0.002);
+    s1 += ref(revised, sameRef ? 'Contract sum' : 'Revised contract', 'var(--ink)', sameRef ? 0 : -16);
+    if (!sameRef) s1 += ref(contract, 'Original contract', 'var(--muted)', 14);
+    const done = D.project.completion && dt(D.project.completion);
+    if (done) { const i = ms.findIndex(t => t >= done); if (i >= 0) s1 += `<line x1="${x(i)}" x2="${x(i)}" y1="${m.t}" y2="${H - m.b}" stroke="var(--muted)" stroke-dasharray="3 3"/><text x="${x(i) - 4}" y="${m.t + 10}" font-size="10.5" text-anchor="end" fill="var(--muted)">Contract completion</text>`; }
+    const di = ms.findIndex(t => t >= dd()); if (di >= 0) s1 += `<line x1="${x(di)}" x2="${x(di)}" y1="${m.t}" y2="${H - m.b}" stroke="var(--hv)" stroke-width="1.5" stroke-dasharray="3 3"/>`;
+    if (plan.length) s1 += lineSeries(plan, x, y, 'var(--c-pv)', 1);
+    s1 += lineSeries(paid, x, y, 'var(--c-pa)') + lineSeries(cert, x, y, 'var(--c-ev)');
+    const lastC = cert.filter(Boolean).pop();
+    if (lastC && revised) { const pc = lastC[1] / revised * 100; s1 += `<text x="${x(lastC[0]) + 8}" y="${y(lastC[1]) - 8}" font-size="12" font-weight="800" fill="var(--c-ev)">${pc.toFixed(1)}% of contract</text>`; }
+    el.innerHTML = `<svg viewBox="0 0 ${W} ${H}">${s1}${xLabels(ms, x, H, small)}</svg>`;
   }
   const CHARTS = { scurve: drawScurve, idx: drawIdx, gantt: drawGantt, ipc: drawIpc, cash: drawCash, cpm: drawCpm, manpower: drawManpower };
 
