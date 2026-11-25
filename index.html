@@ -231,6 +231,11 @@ tr.wrn td:first-child{box-shadow:inset 3px 0 var(--warn)}
 .trail>summary::-webkit-details-marker{display:none}.trail>summary::before{content:"▸";color:var(--muted);transition:transform .15s}.trail[open]>summary::before{transform:rotate(90deg)}
 .trail>summary:hover{background:var(--th)}.tl-last{flex-basis:100%;font-size:14px;color:var(--muted);padding-left:18px}.trail[open] .tl-last{display:none}
 .trail>ol{padding:0 14px 10px 14px!important}.trail>ol::before{left:19px!important}.trail li{padding-left:20px}
+.mtitle{font-weight:600}.mbody{padding:0 14px 12px 32px}
+.mlist{list-style:none;margin:0;padding:0}.mlist li{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 10px;padding:8px 0;border-bottom:1px solid var(--line);max-width:none;margin:0}
+.mlist li:last-child{border-bottom:0}.mtext{flex:1 1 360px;font-size:14.5px}.mfoot{margin-top:10px;align-items:center}
+.trail .mlist::before,.trail .mlist li::before{display:none!important;content:none!important}
+.trail .mlist li{display:flex!important;padding:8px 0!important;grid-template-columns:none}
 
 </style>
 <script>new MutationObserver(()=>{for(const c of document.querySelectorAll('.stack td:not([data-l])')){let i=0,p=c;while(p=p.previousElementSibling)i+=p.colSpan;c.dataset.l=c.closest('table').rows[0].cells[i]?.textContent||''}}).observe(document,{childList:true,subtree:true})</script>

@@ -231,6 +231,11 @@ tr.wrn td:first-child{box-shadow:inset 3px 0 var(--warn)}
 .trail>summary::-webkit-details-marker{display:none}.trail>summary::before{content:"▸";color:var(--muted);transition:transform .15s}.trail[open]>summary::before{transform:rotate(90deg)}
 .trail>summary:hover{background:var(--th)}.tl-last{flex-basis:100%;font-size:14px;color:var(--muted);padding-left:18px}.trail[open] .tl-last{display:none}
 .trail>ol{padding:0 14px 10px 14px!important}.trail>ol::before{left:19px!important}.trail li{padding-left:20px}
+.mtitle{font-weight:600}.mbody{padding:0 14px 12px 32px}
+.mlist{list-style:none;margin:0;padding:0}.mlist li{display:flex;flex-wrap:wrap;align-items:baseline;gap:4px 10px;padding:8px 0;border-bottom:1px solid var(--line);max-width:none;margin:0}
+.mlist li:last-child{border-bottom:0}.mtext{flex:1 1 360px;font-size:14.5px}.mfoot{margin-top:10px;align-items:center}
+.trail .mlist::before,.trail .mlist li::before{display:none!important;content:none!important}
+.trail .mlist li{display:flex!important;padding:8px 0!important;grid-template-columns:none}
 
 </style>
 <script>new MutationObserver(()=>{for(const c of document.querySelectorAll('.stack td:not([data-l])')){let i=0,p=c;while(p=p.previousElementSibling)i+=p.colSpan;c.dataset.l=c.closest('table').rows[0].cells[i]?.textContent||''}}).observe(document,{childList:true,subtree:true})</script>
@@ -1168,11 +1173,27 @@ window.Dash = (() => {
       <p class="cap momst" data-msg="mom" role="status">${esc(momBusy)}${queue.length ? ` · ${queue.length} more file(s) waiting` : ''}</p></section>
     ${review}
     <div class="dgrid">
-      ${card('Meetings recorded', 'Stored files are compressed: small files are kept as they are, large ones as compressed page images.', tbl(['Date', 'Ref.', 'Title', 'Items added', 'File', ''], meetRows), 1)}
+      ${meetingsCard()}
       ${trailCard()}
       ${card('Project log', 'All decisions, actions, critical issues and variations, newest first. Edit or close them in the section below.', logTable([...L].sort(byDateDesc)), 1)}
     </div>`;
   }
+  // Meetings recorded: one collapsed bar; each meeting drops down the minutes recorded in it.
+  function meetingsCard() {
+    const ms = [...D.meetings].sort(byDateDesc);
+    const counts = m => Object.entries(m.counts || {}).map(([k, v]) => `${v} ${esc(k.toLowerCase())}${v > 1 && !/s$/.test(k) ? 's' : ''}`).join(', ') || 'no items';
+    const rows = ms.map(m => {
+      const items = D.log.filter(l => l.meetingId === m.id);
+      const list = items.length ? `<ol class="mlist">${items.map(l => `<li>${typeTag(l)}<span class="mtext">${esc(l.text)}</span><small class="cap">${[l.owner, l.due ? 'due ' + fmtD(l.due) : '', l.wbs ? 'WBS ' + esc(l.wbs) : ''].filter(Boolean).join(' · ')}</small><span class="tag ${l.status === 'Closed' ? 'good' : 'warn'}">${esc(l.status)}</span></li>`).join('')}</ol>` : '<p class="cap">No items were added from this meeting.</p>';
+      return `<details class="trail" data-ed="meet-${esc(m.id)}"${openEd.has('meet-' + m.id) ? ' open' : ''}><summary><b>${esc(m.ref)}</b><span class="cap">${fmtD(m.date)}</span><span class="mtitle">${esc(m.title)}</span><small class="cap">${counts(m)}</small></summary>
+        <div class="mbody">${list}
+        <div class="acts mfoot">${m.file ? `<span class="cap">${esc(m.file)} · ${m.origSize ? kb(m.origSize) + ' → ' : ''}${kb(m.stored || m.size || 0)} stored</span><button type="button" class="btn sm" data-act="mom-open" data-id="${esc(m.id)}">Open file</button>` : '<span class="cap">No file stored</span>'}<button type="button" class="btn sm" data-act="mom-del" data-id="${esc(m.id)}">${momDelArm === m.id ? 'Confirm delete' : 'Delete meeting'}</button></div></div></details>`;
+    }).join('');
+    return `<details class="card span2 trailbox" data-ed="meet"${openEd.has('meet') ? ' open' : ''}><summary><h3>Meetings recorded</h3><span class="cap">${ms.length} meeting${ms.length === 1 ? '' : 's'}${ms.length ? ' · latest ' + esc(ms[0].ref) + ', ' + fmtD(ms[0].date) : ''}</span></summary>
+      <p class="cap">Click a meeting to see what was recorded in it. Stored files are compressed: small files are kept as they are, large ones as compressed page images.</p>
+      <div class="trails">${rows || '<p class="cap">No meetings yet. Drop minutes above.</p>'}</div></details>`;
+  }
+
   function reviewPanel() {
     const ths = threads().sort((a, b) => dt(b.last.date) - dt(a.last.date)).slice(0, 60);
     const p = pending, sel = (k, i, v, opts) => `<select data-pi="${i}" data-pk="${k}">${opts.map(o => `<option${o === v ? ' selected' : ''}>${o}</option>`).join('')}</select>`;
