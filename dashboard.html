@@ -216,6 +216,21 @@ table.tv{min-width:640px}
 table.rv select.fol{min-width:240px;max-width:320px}
 .upl .dgrid:has(> :nth-child(3)){grid-template-columns:repeat(3,minmax(0,1fr))}
 @media(max-width:900px){.upl .dgrid:has(> :nth-child(3)){grid-template-columns:minmax(0,1fr)}}
+tr.err td{background:color-mix(in srgb,var(--bad) 12%,transparent)}tr.err td:first-child{box-shadow:inset 3px 0 var(--bad)}
+tr.wrn td:first-child{box-shadow:inset 3px 0 var(--warn)}
+.checks{margin:4px 0 12px;padding-left:0;list-style:none}.checks li{position:relative;padding:6px 10px 6px 28px;margin:4px 0;border-radius:6px;font-size:14.5px;max-width:none}
+.checks li::before{position:absolute;left:9px;top:6px;font-weight:800}.checks li.bad{background:color-mix(in srgb,var(--bad) 12%,transparent)}.checks li.bad::before{content:"✕";color:var(--bad)}
+.checks li.warn{background:color-mix(in srgb,var(--warn) 14%,transparent)}.checks li.warn::before{content:"!";color:var(--warn)}
+.ok-line{color:var(--good);font-weight:700}.ok-line::before{content:"✓ "}h4.ck{margin:14px 0 4px;font-size:15px}
+.tag.bad{background:#ff9c8f}.tag.warn{background:#ffd98a}.btn.xs{min-height:30px;padding:0 8px;font-size:12.5px;margin-top:4px}
+.trailbox>summary{list-style:none;cursor:pointer;display:flex;flex-wrap:wrap;align-items:baseline;gap:6px 14px}.trailbox>summary::-webkit-details-marker{display:none}
+.trailbox>summary h3{margin:0}.trailbox>summary::before{content:"▸";font-size:16px;color:var(--muted);transition:transform .15s}.trailbox[open]>summary::before{transform:rotate(90deg)}
+.trailbox[open]>summary{margin-bottom:6px}
+.trails{grid-template-columns:minmax(0,1fr)!important;gap:8px!important}
+.trail{padding:0!important}.trail>summary{list-style:none;cursor:pointer;display:flex;flex-wrap:wrap;align-items:center;gap:6px 10px;padding:10px 14px;border-radius:10px}
+.trail>summary::-webkit-details-marker{display:none}.trail>summary::before{content:"▸";color:var(--muted);transition:transform .15s}.trail[open]>summary::before{transform:rotate(90deg)}
+.trail>summary:hover{background:var(--th)}.tl-last{flex-basis:100%;font-size:14px;color:var(--muted);padding-left:18px}.trail[open] .tl-last{display:none}
+.trail>ol{padding:0 14px 10px 14px!important}.trail>ol::before{left:19px!important}.trail li{padding-left:20px}
 
 </style>
 <script>new MutationObserver(()=>{for(const c of document.querySelectorAll('.stack td:not([data-l])')){let i=0,p=c;while(p=p.previousElementSibling)i+=p.colSpan;c.dataset.l=c.closest('table').rows[0].cells[i]?.textContent||''}}).observe(document,{childList:true,subtree:true})</script>
@@ -538,7 +553,33 @@ window.Mom = (() => {
     return { rows, grand: grand ? num(grand) : rows.reduce((a, r) => a + r.amount, 0) };
   }
 
-  return { extractText, parse, putFile, getFile, delFile, parseDate, compact, openStored, gunzip, usage, parseWbs, parseProgress, parseTender, parseBoq, wbsMatch };
+  // ---------- interim payment certificate (IPC) ----------
+  function parseIpc(text) {
+    const lines = docLines(text);
+    const amt = l => { const ms = [...l.replace(DATE_RX, ' ').matchAll(/\(?\-?\s?[\d][\d,]*(?:\.\d+)?\)?/g)].map(m => m[0]).filter(x => x.replace(/\D/g, '').length >= 3 && !/%/.test(x)); if (!ms.length) return null; const v = parseFloat(ms[ms.length - 1].replace(/[^\d.]/g, '')); return isFinite(v) ? v : null; };
+    const find = (rx, not) => { for (const l of lines) if (rx.test(l) && !(not && not.test(l))) { const v = amt(l); if (v !== null) return v; } return null; };
+    const pctOn = rx => { for (const l of lines) if (rx.test(l)) { const m = l.match(/(\d{1,2}(?:\.\d+)?)\s*%/); if (m) return +m[1]; } return null; };
+    const noM = String(text).match(/(?:interim payment certificate|payment certificate|IPC|certificate)\s*(?:no\.?|number|#)?\s*[:\-]?\s*([A-Z]*-?\d{1,4})\b/i);
+    const date = reportDate(lines);
+    const r = {
+      no: noM ? (/^\d+$/.test(noM[1]) ? 'IPC-' + noM[1].padStart(2, '0') : noM[1].toUpperCase()) : '',
+      period: date ? date.slice(0, 7) : '',
+      cumGross: find(/(?:total|gross)?\s*(?:value of )?(?:work(?:s)? done|valuation|gross amount|gross value)\s*(?:to date|cumulative)|cumulative (?:gross|value|valuation)|total to date/i, /previous|less/i),
+      previous: find(/(?:less\s+)?(?:previous(?:ly)?\s*(?:certified|certificates?|payments?|valuations?)|amount previously certified)/i),
+      gross: find(/(?:gross )?(?:amount|value|valuation)\s*(?:due\s*)?(?:this|for this|current)\s*(?:period|certificate|month|valuation)|this (?:period|certificate) gross|gross this (?:period|certificate)/i),
+      retention: find(/retention/i, /release|previous|cumulative|to date/i),
+      retentionRate: pctOn(/retention/i),
+      advance: find(/(?:advance(?: payment)?\s*recovery|recovery of (?:the )?advance|less advance)/i, /previous|cumulative|to date/i),
+      other: find(/(?:other deductions?|contra charges?|back ?charges?|penalt(?:y|ies)|liquidated damages deducted)/i),
+      vat: find(/\bVAT\b|value added tax/i, /\bnet\b|excluding|total|before|inclusive/i),
+      net: find(/\bnet\b\s*(?:amount)?\s*(?:due|payable|certified|this)?/i, /to date|previous/i),
+      total: find(/total (?:amount )?(?:due|payable)|amount (?:due|certified) for payment|grand total|including vat|inclusive of vat/i, /to date|previous|work done/i),
+    };
+    if (r.gross === null && r.cumGross !== null && r.previous !== null) r.derivedGross = true;
+    return r;
+  }
+
+  return { parseIpc, extractText, parse, putFile, getFile, delFile, parseDate, compact, openStored, gunzip, usage, parseWbs, parseProgress, parseTender, parseBoq, wbsMatch };
 })();
 
 // Project dashboard: schedule and progress (WBS baseline + progress log), milestones, interfaces,
@@ -552,9 +593,11 @@ window.Dash = (() => {
   function sample() {
     const ipcs = [];
     const cert = [1500000, 2200000, 3000000, 3200000, 2600000, 2300000, 2800000, 2700000, 3000000];
+    let cum = 0;
     cert.forEach((c, i) => {
       const m = String(i + 2).padStart(2, '0'), ret = c * 0.05, adv = c * 0.10, net = c - ret - adv;
-      ipcs.push({ no: 'IPC-' + String(i + 1).padStart(2, '0'), period: '2026-' + m, applied: Math.round(c * 1.08), certified: c, retention: ret, advance: adv,
+      cum += c;
+      ipcs.push({ no: 'IPC-' + String(i + 1).padStart(2, '0'), period: '2026-' + m, applied: Math.round(c * 1.08), certified: c, retention: ret, advance: adv, other: 0, vat: 0, statedNet: i === 6 ? net + 14000 : net, cumGross: cum,
         paid: i === 8 ? 0 : i === 7 ? Math.round(net * 0.5) : net, paidDate: i === 8 ? '' : `2026-${String(i + 3).padStart(2, '0')}-20` });
     });
     return {
@@ -669,7 +712,7 @@ window.Dash = (() => {
     milestones: { title: 'Milestones', cols: [['id', 'ID'], ['name', 'Milestone'], ['baseline', 'Baseline date', 'd'], ['forecast', 'Forecast date', 'd'], ['actual', 'Actual date', 'd']] },
     costs: { title: 'Actual cost (cumulative, by month)', note: 'Optional. Needed for CPI and the forecast at completion.', cols: [['month', 'Month', 'm'], ['ac', 'Cumulative actual cost', 'n']] },
     interfaces: { title: 'Interface register', note: 'Provider and receiver: a WBS code, or an outside party such as a utility.', cols: [['id', 'ID'], ['desc', 'Interface point'], ['from', 'Provider', 'w'], ['to', 'Receiver', 'w'], ['type', 'Type', 's', ['Hard', 'Soft', 'Resource', 'Extra-project']], ['requirement', 'Requirement / dependency'], ['needBy', 'Need-by date', 'd'], ['status', 'Status', 's', ['Open', 'Agreed', 'Delivered', 'Closed']]] },
-    ipcs: { title: 'Interim payment certificates (IPCs)', note: 'Enter the period values as certified. Net payable = certified − retention − advance recovery.', cols: [['no', 'IPC No.'], ['period', 'Period', 'm'], ['applied', 'Applied', 'n'], ['certified', 'Certified (gross)', 'n'], ['retention', 'Retention', 'n'], ['advance', 'Advance recovery', 'n'], ['paid', 'Paid', 'n'], ['paidDate', 'Paid date', 'd']] },
+    ipcs: { title: 'Interim payment certificates (IPCs)', note: 'Enter the period values as certified. Net payable = certified − retention − advance recovery − other deductions. Fill "Net per certificate" and "Gross to date" from the certificate so its arithmetic can be checked.', cols: [['no', 'IPC No.'], ['period', 'Period', 'm'], ['applied', 'Applied', 'n'], ['certified', 'Certified (gross)', 'n'], ['retention', 'Retention', 'n'], ['advance', 'Advance recovery', 'n'], ['paid', 'Paid', 'n'], ['paidDate', 'Paid date', 'd'], ['other', 'Other deductions', 'n'], ['vat', 'VAT', 'n'], ['statedNet', 'Net per certificate', 'n'], ['cumGross', 'Gross to date', 'n']] },
     payments: { title: 'Other project payments', note: 'Everything paid outside the IPCs: advance, fees, authority and utility charges, owner purchases.', cols: [['date', 'Date', 'd'], ['category', 'Category', 's', PAY_CATS], ['payee', 'Payee'], ['ref', 'Reference'], ['amount', 'Amount', 'n'], ['status', 'Status', 's', ['Paid', 'Pending']]] },
     risks: { title: 'Risk register', cols: [['id', 'ID'], ['title', 'Risk'], ['l', 'Likelihood 1-5', 'n'], ['i', 'Impact 1-5', 'n'], ['owner', 'Owner'], ['status', 'Status', 's', ['Open', 'Watch', 'Closed']]] },
     pcos: { title: 'PCOs and change orders', cols: [['no', 'PCO No.'], ['desc', 'Description'], ['value', 'Value', 'n'], ['days', 'Time (days)', 'n'], ['status', 'Status', 's', ['Potential', 'Submitted', 'Approved', 'Rejected']], ['co', 'CO No.'], ['source', 'Source']] },
@@ -755,7 +798,50 @@ window.Dash = (() => {
   }
   const msVar = m => { const b = dt(m.baseline), e = dt(m.actual) || dt(m.forecast) || b; return isFinite(b) && isFinite(e) ? Math.round((e - b) / DAY) : 0; };
   const ifOverdue = x => dt(x.needBy) < dd() && !['Delivered', 'Closed'].includes(x.status);
-  const ipcNet = r => num(r.certified) - num(r.retention) - num(r.advance);
+  const ipcNet = r => num(r.certified) - num(r.retention) - num(r.advance) - num(r.other);
+
+  // ---------- IPC calculation checks ----------
+  const tolOf = v => Math.max(1, Math.abs(v) * 0.0005);
+  const sortedIpcs = () => [...D.ipcs].sort((a, b) => String(a.period).localeCompare(String(b.period)) || String(a.no).localeCompare(String(b.no), undefined, { numeric: true }));
+  function ipcChecks(r, prev, upto) {
+    const out = [], cert = num(r.certified), ret = num(r.retention), adv = num(r.advance), rate = num(D.project.retention), advPct = num(D.project.advance);
+    const bad = (m) => out.push({ lvl: 'bad', m }), warn = (m) => out.push({ lvl: 'warn', m });
+    if (num(r.cumGross) && prev && num(prev.cumGross)) {
+      const exp = num(r.cumGross) - num(prev.cumGross);
+      if (Math.abs(exp - cert) > tolOf(exp)) bad(`Gross this period ${money(cert, true)} ≠ gross to date ${money(num(r.cumGross), true)} − previous ${money(num(prev.cumGross), true)} = ${money(exp, true)}`);
+    }
+    if (rate && cert) { const exp = cert * rate / 100; if (Math.abs(exp - ret) > tolOf(exp)) bad(`Retention ${money(ret, true)} ≠ ${rate}% × ${money(cert, true)} = ${money(exp, true)}`); }
+    if (advPct && cert && adv) { const exp = cert * advPct / 100; if (Math.abs(exp - adv) > tolOf(exp)) warn(`Advance recovery ${money(adv, true)} differs from ${advPct}% × gross = ${money(exp, true)}; check the recovery schedule`); }
+    if (upto) {
+      const advPaid = sum(D.payments.filter(p => p.category === 'Advance payment' && p.status === 'Paid'), p => p.amount), recovered = sum(upto, x => x.advance);
+      if (advPaid && recovered > advPaid + 1) bad(`Advance recovered to date ${money(recovered, true)} exceeds the advance paid ${money(advPaid, true)}`);
+      const certTo = sum(upto, x => x.certified), revised = num(D.project.contract) + sum(D.pcos.filter(p => p.status === 'Approved'), p => p.value);
+      if (revised && certTo > revised + 1) warn(`Certified to date ${money(certTo, true)} exceeds the revised contract sum ${money(revised, true)}`);
+    }
+    const net = ipcNet(r);
+    if (num(r.statedNet) && Math.abs(net - num(r.statedNet)) > tolOf(net)) bad(`Net on certificate ${money(num(r.statedNet), true)} ≠ ${money(cert, true)} − ${money(ret, true)} − ${money(adv, true)}${num(r.other) ? ' − ' + money(num(r.other), true) : ''} = ${money(net, true)} (difference ${money(num(r.statedNet) - net, true)})`);
+    if (num(r.paid) > net + num(r.vat) + tolOf(net)) bad(`Paid ${money(num(r.paid), true)} exceeds the amount due ${money(net + num(r.vat), true)}`);
+    return out;
+  }
+  function allIpcChecks() {
+    const list = sortedIpcs(), res = new Map();
+    list.forEach((r, i) => res.set(r, ipcChecks(r, list[i - 1], list.slice(0, i + 1))));
+    return res;
+  }
+  // Checks on an uploaded certificate before it is added
+  function ipcDocChecks(F) {
+    const list = sortedIpcs().filter(x => x.no !== F.no && String(x.period) <= String(F.period || '9999'));
+    const prev = list[list.length - 1], row = { certified: F.gross, retention: F.retention, advance: F.advance, other: F.other, vat: F.vat, statedNet: F.net, cumGross: F.cumGross, paid: 0 };
+    const out = ipcChecks(row, prev, [...list, row]);
+    const tol = tolOf(num(F.gross));
+    if (num(F.cumGross) && num(F.previous) && Math.abs(num(F.cumGross) - num(F.previous) - num(F.gross)) > tol) out.unshift({ lvl: 'bad', m: `On the certificate: to date ${money(num(F.cumGross), true)} − previously certified ${money(num(F.previous), true)} = ${money(num(F.cumGross) - num(F.previous), true)}, but gross this period is ${money(num(F.gross), true)}` });
+    if (num(F.previous) && list.length) { const regPrev = sum(list, x => x.certified); if (Math.abs(regPrev - num(F.previous)) > tolOf(regPrev)) out.push({ lvl: 'warn', m: `"Previously certified" ${money(num(F.previous), true)} ≠ total of earlier IPCs in the register ${money(regPrev, true)}` }); }
+    if (num(F.total) && Math.abs(num(F.net) + num(F.vat) - num(F.total)) > tol) out.push({ lvl: 'bad', m: `Total for payment ${money(num(F.total), true)} ≠ net ${money(num(F.net), true)} + VAT ${money(num(F.vat), true)} = ${money(num(F.net) + num(F.vat), true)}` });
+    if (num(F.vat) && num(F.net)) { const r = num(F.vat) / num(F.net) * 100; if (Math.abs(r - 5) > 0.05 && Math.abs(r - Math.round(r)) > 0.05) out.push({ lvl: 'warn', m: `VAT is ${r.toFixed(2)}% of net; check the VAT rate` }); }
+    if (F.retentionRate && num(D.project.retention) && Math.abs(F.retentionRate - num(D.project.retention)) > 0.01) out.push({ lvl: 'warn', m: `Certificate uses ${F.retentionRate}% retention; the contract says ${num(D.project.retention)}%` });
+    return out;
+  }
+  const checkList = cs => cs.length ? '<ul class="checks">' + cs.map(c => `<li class="${c.lvl}">${esc(c.m)}</li>`).join('') + '</ul>' : '<p class="ok-line">All calculations check out.</p>';
 
   function metrics() {
     const t = dd(), bac = sum(D.wbs, w => w.budget), pv = PV(t), ev = EV(t), ac = ACat(t);
@@ -968,11 +1054,13 @@ window.Dash = (() => {
 
   function vPayments() {
     const m = metrics(), c = esc(cur());
-    const ipcRows = D.ipcs.map(r => { const n = ipcNet(r), o = n - num(r.paid), st = num(r.paid) >= n - 1 ? ['Paid', 'good'] : num(r.paid) > 0 ? ['Part paid', 'warn'] : ['Unpaid', 'bad'];
-      return `<tr><td>${esc(r.no)}</td><td>${esc(r.period)}</td><td class="r">${money(num(r.certified), true)}</td><td class="r">${money(num(r.retention), true)}</td><td class="r">${money(num(r.advance), true)}</td><td class="r">${money(n, true)}</td><td class="r">${money(num(r.paid), true)}</td><td class="r">${money(o, true)}</td><td><span class="tag ${st[1]}">${st[0]}</span></td></tr>`; });
-    ipcRows.push(`<tr class="tot"><td>Total</td><td></td><td class="r">${money(m.cert, true)}</td><td class="r">${money(sum(D.ipcs, r => r.retention), true)}</td><td class="r">${money(m.advRec, true)}</td><td class="r">${money(m.net, true)}</td><td class="r">${money(m.ipcPaid, true)}</td><td class="r">${money(m.ipcOut, true)}</td><td></td></tr>`);
+    const chk = allIpcChecks(), nBad = [...chk.values()].reduce((a, cs) => a + cs.filter(c => c.lvl === 'bad').length, 0), nWarn = [...chk.values()].reduce((a, cs) => a + cs.filter(c => c.lvl === 'warn').length, 0);
+    const ipcRows = sortedIpcs().map(r => { const n = ipcNet(r), o = n - num(r.paid), st = num(r.paid) >= n - 1 ? ['Paid', 'good'] : num(r.paid) > 0 ? ['Part paid', 'warn'] : ['Unpaid', 'bad'], cs = chk.get(r) || [];
+      return `<tr class="${cs.some(c => c.lvl === 'bad') ? 'err' : cs.length ? 'wrn' : ''}"><td>${esc(r.no)}${r.file ? `<br><button type="button" class="btn xs" data-act="sub-open" data-id="${esc(r.fileId)}">Open</button>` : ''}</td><td>${esc(r.period)}</td><td class="r">${money(num(r.certified), true)}</td><td class="r">${money(num(r.retention), true)}</td><td class="r">${money(num(r.advance), true)}</td><td class="r">${money(n, true)}</td><td class="r">${money(num(r.paid), true)}</td><td class="r">${money(o, true)}</td><td><span class="tag ${st[1]}">${st[0]}</span></td><td>${cs.length ? cs.map(c => `<span class="tag ${c.lvl}" title="${esc(c.m)}">${c.lvl === 'bad' ? 'Error' : 'Check'}</span>`).join(' ') : '<span class="tag good">✓</span>'}</td></tr>`; });
+    ipcRows.push(`<tr class="tot"><td>Total</td><td></td><td class="r">${money(m.cert, true)}</td><td class="r">${money(sum(D.ipcs, r => r.retention), true)}</td><td class="r">${money(m.advRec, true)}</td><td class="r">${money(m.net, true)}</td><td class="r">${money(m.ipcPaid, true)}</td><td class="r">${money(m.ipcOut, true)}</td><td></td><td></td></tr>`);
     const payRows = [...D.payments].sort((a, b) => dt(b.date) - dt(a.date)).map(p => `<tr><td>${fmtD(p.date)}</td><td>${esc(p.category)}</td><td>${esc(p.payee)}</td><td>${esc(p.ref)}</td><td class="r">${money(num(p.amount), true)}</td><td><span class="tag ${p.status === 'Paid' ? 'good' : 'warn'}">${esc(p.status)}</span></td></tr>`);
     return `<div class="kpis">
+      ${kpi('IPC calculation checks', nBad ? `${nBad} error${nBad > 1 ? 's' : ''}` : 'All correct', nBad || nWarn ? `${nWarn} to check · see the list below` : `${D.ipcs.length} certificates re-calculated`, nBad ? 'bad' : nWarn ? 'warn' : 'good')}
       ${kpi(`IPCs certified (${c})`, money(m.cert), `${D.ipcs.length} certificates, gross`)}
       ${kpi(`IPCs paid (${c})`, money(m.ipcPaid), `of ${money(m.net)} net payable`)}
       ${kpi(`IPC outstanding (${c})`, money(m.ipcOut), 'certified but not yet paid', m.ipcOut > 0 ? 'warn' : 'good')}
@@ -980,10 +1068,18 @@ window.Dash = (() => {
       ${kpi(`Advance balance (${c})`, money(m.advPaid - m.advRec), `paid ${money(m.advPaid)} · recovered ${money(m.advRec)}`)}
       ${kpi(`Other payments (${c})`, money(m.otherPaid), `${money(m.otherPend)} pending`, m.otherPend ? 'warn' : '')}
       ${kpi(`Total project spend (${c})`, money(m.spend), 'IPCs paid + other payments paid')}
-    </div><div class="dgrid">
+    </div>
+    <section class="card upl"><h3>Upload an interim payment certificate</h3>
+      <p class="cap">Drop the IPC as a PDF or photo. Its figures are read and every calculation is checked before it is added to the register: gross this period, retention, advance recovery, net, VAT and the running totals against earlier certificates.</p>
+      <label class="drop" data-drop-kind="ipc"><input type="file" accept=".pdf,image/*,.txt" data-act="ipc-file" hidden><b>Drop IPC here</b><span>or click to choose a file</span></label>
+      <details class="paste"><summary>Or paste the certificate text</summary><textarea data-doc-text rows="6" placeholder="Paste the IPC here"></textarea><button type="button" class="btn sm" data-act="doc-paste-ipc">Read as IPC</button></details>
+      <p class="cap momst" data-msg="doc" role="status">${esc(docBusy)}</p></section>
+    ${docPend && docPend.kind === 'ipc' ? docReview() : ''}
+    <div class="dgrid">
       ${card('IPCs by period', `Certified (gross), net payable and paid (${c}).`, legend([['ap', 'Certified'], ['ce', 'Net payable'], ['pa', 'Paid']]) + fig('ipc'), 1)}
       ${card('Cumulative cash flow', `IPC net payable vs paid, plus other project payments (${c}).`, legend([['ev', 'IPC net payable'], ['ok2', 'IPC paid'], ['ac', 'All project payments paid']]) + fig('cash'), 1)}
-      ${card('IPC register', '', tbl(['IPC', 'Period', 'Certified', 'Retention', 'Advance rec.', 'Net', 'Paid', 'Outstanding', 'Status'], ipcRows, [2, 3, 4, 5, 6, 7]), 1)}
+      ${card('IPC register', '', tbl(['IPC', 'Period', 'Certified', 'Retention', 'Advance rec.', 'Net', 'Paid', 'Outstanding', 'Status', 'Checks'], ipcRows, [2, 3, 4, 5, 6, 7]), 1)}
+      ${card('IPC calculation checks', 'Every certificate is re-calculated: gross this period against gross to date, retention against the contract %, advance recovery, net against the certificate, and paid against due. Red = arithmetic error; amber = worth checking.', sortedIpcs().filter(r => (chk.get(r) || []).length).map(r => `<h4 class="ck">${esc(r.no)} · ${esc(r.period)}</h4>${checkList(chk.get(r))}`).join('') || checkList([]), 1)}
       ${card('Other payments by category', `Paid and pending (${c}).`, catBars())}
       ${card('Other project payments', '', tbl(['Date', 'Category', 'Payee', 'Ref.', 'Amount', 'Status'], payRows, [4]), 1)}
     </div>`;
@@ -1124,9 +1220,11 @@ window.Dash = (() => {
   function trailCard() {
     const ts = threads().filter(t => t.list.length > 1).sort((a, b) => dt(b.last.date) - dt(a.last.date));
     if (!ts.length) return card('Item trail across meetings', 'Items followed up in later meetings appear here as a trail, oldest first.', '<p class="cap">No item has been followed up in a later meeting yet.</p>', 1);
-    return card('Item trail across meetings', 'Each item as it was recorded in successive meetings, oldest first, with its current status.',
-      '<div class="trails">' + ts.map(t => `<article class="trail"><header><span>${typeTag(t.last)}</span><b>${esc((w => w ? wbsLabel(w) : 'General')((t.list.find(l => l.wbs) || {}).wbs))}</b><span class="tag ${t.last.status === 'Closed' ? 'good' : 'warn'}">${esc(t.last.status)}</span><small class="cap">${t.list.length} meetings</small></header>
-        <ol>${t.list.map(l => `<li><div class="tl-when"><b>${esc(l.mom)}</b><small>${fmtD(l.date)}</small></div><div class="tl-what">${esc(l.text)}${l.owner ? ` <small class="cap">· ${esc(l.owner)}${l.due ? ', due ' + fmtD(l.due) : ''}</small>` : ''}</div></li>`).join('')}</ol></article>`).join('') + '</div>', 1);
+    const open = ts.filter(t => t.last.status !== 'Closed').length;
+    return `<details class="card span2 trailbox" data-ed="trail"${openEd.has('trail') ? ' open' : ''}><summary><h3>Item trail across meetings</h3><span class="cap">${ts.length} items followed up · ${open} open</span></summary>
+      <p class="cap">Click an item to see how it was recorded in each meeting, oldest first.</p>
+      <div class="trails">${ts.map(t => `<details class="trail" data-ed="trail-${esc(t.id)}"${openEd.has('trail-' + t.id) ? ' open' : ''}><summary>${typeTag(t.last)}<b>${esc((w => w ? wbsLabel(w) : 'General')((t.list.find(l => l.wbs) || {}).wbs))}</b><span class="tag ${t.last.status === 'Closed' ? 'good' : 'warn'}">${esc(t.last.status)}</span><small class="cap">${t.list.length} meetings · latest ${esc(t.last.mom)}, ${fmtD(t.last.date)}</small><span class="tl-last">${esc(t.last.text.length > 110 ? t.last.text.slice(0, 107) + '…' : t.last.text)}</span></summary>
+        <ol>${t.list.map(l => `<li><div class="tl-when"><b>${esc(l.mom)}</b><small>${fmtD(l.date)}</small></div><div class="tl-what">${esc(l.text)}${l.owner ? ` <small class="cap">· ${esc(l.owner)}${l.due ? ', due ' + fmtD(l.due) : ''}</small>` : ''}</div></li>`).join('')}</ol></details>`).join('')}</div></details>`;
   }
 
   function setMomMsg() { const m = root && root.querySelector('[data-msg="mom"]'); if (m) m.textContent = momBusy + (queue.length ? ` · ${queue.length} more file(s) waiting` : ''); }
@@ -1217,6 +1315,14 @@ window.Dash = (() => {
   }
   function docReview() {
     const p = docPend;
+    if (p.kind === 'ipc') {
+      const F = p.fields, cs = ipcDocChecks(F);
+      return `<section class="card review"><h3>Review ${esc(F.no)}: ${esc(p.fileName)}</h3>
+        <div class="pform">${IPC_FIELDS.map(([k, l]) => `<label>${l}<input data-if="${k}"${k === 'paidDate' ? ' type="date"' : ['no', 'period'].includes(k) ? '' : ' inputmode="decimal" class="r"'} value="${esc(F[k] ?? '')}"></label>`).join('')}</div>
+        <h4 class="ck">Calculation checks</h4>${checkList(cs)}
+        <div class="acts"><button type="button" class="btn sm primary" data-act="doc-apply">${D.ipcs.some(x => x.no === F.no) ? 'Update ' + esc(F.no) + ' in the register' : 'Add to IPC register'}</button><button type="button" class="btn sm" data-act="doc-discard">Discard</button></div>
+        <details class="xt"><summary>Show the extracted text</summary><pre>${esc(p.text.slice(0, 20000))}</pre></details></section>`;
+    }
     if (p.kind === 'sub') {
       const F = p.fields, sc = SCHEMA.subs.cols;
       const inp = c => c[2] === 's' ? `<select data-sf="${c[0]}">${c[3].map(o => `<option${o === F[c[0]] ? ' selected' : ''}>${o}</option>`).join('')}</select>`
@@ -1276,7 +1382,18 @@ window.Dash = (() => {
       <details class="xt"><summary>Show the extracted text</summary><pre>${esc(p.text.slice(0, 20000))}</pre></details></section>`;
   }
   function setDocMsg() { const m = root && root.querySelector('[data-msg="doc"]'); if (m) m.textContent = docBusy; }
+  const IPC_FIELDS = [['no', 'IPC No.'], ['period', 'Period (YYYY-MM)'], ['cumGross', 'Gross value to date'], ['previous', 'Previously certified'], ['gross', 'Gross this period'], ['retention', 'Retention this period'], ['advance', 'Advance recovery'], ['other', 'Other deductions'], ['net', 'Net amount due'], ['vat', 'VAT'], ['total', 'Total for payment'], ['applied', 'Applied by contractor'], ['paid', 'Paid'], ['paidDate', 'Paid date']];
   function readDoc(kind, text, fileName, file) {
+    if (kind === 'ipc') {
+      const r = Mom.parseIpc(text);
+      if (r.gross === null && r.cumGross !== null && r.previous !== null) r.gross = r.cumGross - r.previous;
+      const ex = D.ipcs.find(x => x.no === r.no);
+      const fields = { no: r.no || nextNo('IPC-', D.ipcs.map(x => x.no)).replace(/-0+(\d)/, '-$1'), period: r.period, cumGross: r.cumGross || 0, previous: r.previous || 0, gross: r.gross || 0, retention: r.retention || 0, advance: r.advance || 0, other: r.other || 0, net: r.net || 0, vat: r.vat || 0, total: r.total || 0, applied: ex ? ex.applied : r.gross || 0, paid: ex ? ex.paid : 0, paidDate: ex ? ex.paidDate : '', retentionRate: r.retentionRate };
+      docPend = { kind, text, fileName, file: file || null, fields };
+      const cs = ipcDocChecks(fields), nb = cs.filter(c => c.lvl === 'bad').length;
+      docBusy = `${fields.no} read from ${fileName}: ${nb ? nb + ' calculation error' + (nb > 1 ? 's' : '') + ' found' : 'calculations check out'}. Review below.`;
+      tab = 'payments'; render(); return;
+    }
     if (kind === 'sub') {
       const t = Mom.parseTender(text), scope = t.scope || '';
       const fields = { name: t.subcontractor || t.contractor || '', scope, wbs: Mom.wbsMatch(scope + ' ' + text.slice(0, 1500), D.wbs) || '', type: /remeasur|re-measur|bill of quantities/i.test(text) ? 'Remeasured' : /supply and install|supply & install/i.test(text) ? 'Supply and install' : /labour only/i.test(text) ? 'Labour only' : 'Lump sum',
@@ -1426,6 +1543,16 @@ window.Dash = (() => {
   }
   function applyDoc() {
     const p = docPend; if (!p) return;
+    if (p.kind === 'ipc') {
+      const F = p.fields, ex = D.ipcs.find(x => x.no === F.no);
+      const row = Object.assign(ex || {}, { no: F.no, period: F.period, applied: num(F.applied), certified: num(F.gross), retention: num(F.retention), advance: num(F.advance), other: num(F.other), vat: num(F.vat), statedNet: num(F.net), cumGross: num(F.cumGross), paid: num(F.paid), paidDate: F.paidDate });
+      if (p.file) { row.fileId = 'ipc-' + Date.now().toString(36); row.file = p.fileName; }
+      if (!ex) D.ipcs.push(row);
+      const cs = ipcDocChecks(F).filter(c => c.lvl === 'bad').length;
+      docPend = null; save(); docBusy = `${ex ? 'Updated' : 'Added'} ${row.no}.${cs ? ` ${cs} calculation error${cs > 1 ? 's are' : ' is'} highlighted in the register.` : ''}`; render();
+      if (p.file) Mom.compact(p.file, p.text, () => {}).then(rec => Mom.putFile(row.fileId, rec)).catch(() => {});
+      return;
+    }
     if (p.kind === 'sub') {
       const F = p.fields, row = Object.fromEntries(SCHEMA.subs.cols.map(c => [c[0], c[2] === 'n' ? num(F[c[0]]) : F[c[0]] ?? '']));
       row.fileId = 'sub-' + Date.now().toString(36); row.file = p.file ? p.fileName : '';
@@ -1752,6 +1879,7 @@ window.Dash = (() => {
   }
   function setDoc(t) {
     if (!docPend) return false;
+    if (t.dataset.if) { docPend.fields[t.dataset.if] = ['no', 'period', 'paidDate'].includes(t.dataset.if) ? t.value : num(t.value); return true; }
     if (t.dataset.sf) { const c = SCHEMA.subs.cols.find(x => x[0] === t.dataset.sf); docPend.fields[t.dataset.sf] = c && c[2] === 'n' ? num(t.value) : t.value; return true; }
     if (t.dataset.dm) { docPend[t.dataset.dm] = t.type === "checkbox" ? t.checked : t.value; return true; }
     if (t.dataset.dk) { const r = docPend.rows[+t.dataset.di], k = t.dataset.dk; r[k] = k === "include" ? t.checked : t.value; if (k === "include") t.closest("tr").classList.toggle("off", !t.checked); return true; }
@@ -1760,9 +1888,9 @@ window.Dash = (() => {
   function onInput(e) { if (!setPending(e.target) && !setDoc(e.target)) setVal(e.target); }
   function onChange(e) {
     const t = e.target;
-    if (setPending(t) || setDoc(t)) return;
+    if (setPending(t) || setDoc(t)) { if (t.dataset.if) render(); return; }
     if (t.hasAttribute('data-momreview')) { D.project.momReview = t.checked; save(); return; }
-    const KIND = { 'wbs-file': 'wbs', 'prog-file': 'prog', 'tender-file': 'tender', 'boq-file': 'boq', 'sub-file': 'sub' };
+    const KIND = { 'wbs-file': 'wbs', 'prog-file': 'prog', 'tender-file': 'tender', 'boq-file': 'boq', 'sub-file': 'sub', 'ipc-file': 'ipc' };
     if (KIND[t.dataset.act] && t.files.length) { const f = t.files[0]; t.value = ''; processDoc(KIND[t.dataset.act], f); return; }
     if (t.dataset.act === 'proj-switch') { switchTo(t.value); return; }
     if (t.dataset.act === 'mom-file' && t.files.length) { queue.push(...t.files); t.value = ''; processNext(); setMomMsg(); return; }
