@@ -204,6 +204,16 @@ label.inl{display:flex;gap:8px;align-items:center;margin:10px 0;font-size:14.5px
 .pform.wf{max-width:640px;margin-bottom:12px}
 table.tv{min-width:640px}
 .pform select{font:inherit;font-size:16px;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:6px;min-height:40px;padding:4px 8px;width:100%}
+.trails{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,420px),1fr));gap:12px}
+.trail{border:1px solid var(--line);border-radius:10px;padding:12px 14px}
+.trail header{display:flex;flex-wrap:wrap;gap:8px;align-items:center;margin-bottom:8px}
+.trail ol{list-style:none;margin:0;padding:0;position:relative}
+.trail ol::before{content:"";position:absolute;left:5px;top:6px;bottom:6px;width:2px;background:var(--line)}
+.trail li{position:relative;display:grid;grid-template-columns:96px minmax(0,1fr);gap:10px;padding:6px 0 6px 20px;max-width:none;margin:0}
+.trail li::before{content:"";position:absolute;left:0;top:11px;width:12px;height:12px;border-radius:50%;background:var(--bg);border:2px solid var(--c-ev)}
+.trail li:last-child::before{background:var(--c-ev)}
+.tl-when{display:flex;flex-direction:column;font-size:13px;line-height:1.3}.tl-when small{color:var(--muted)}.tl-what{font-size:14.5px}
+table.rv select.fol{min-width:240px;max-width:320px}
 
 </style>
 <script>new MutationObserver(()=>{for(const c of document.querySelectorAll('.stack td:not([data-l])')){let i=0,p=c;while(p=p.previousElementSibling)i+=p.colSpan;c.dataset.l=c.closest('table').rows[0].cells[i]?.textContent||''}}).observe(document,{childList:true,subtree:true})</script>
@@ -594,7 +604,7 @@ window.Dash = (() => {
         { no: 'PCO-001', desc: 'Additional borehole and rock excavation', value: 420000, days: 21, status: 'Approved', co: 'CO-001' },
         { no: 'PCO-002', desc: 'Upgraded lobby stone finish (owner request)', value: 310000, days: 0, status: 'Approved', co: 'CO-002' },
         { no: 'PCO-003', desc: 'Deleted level 6 kitchenette', value: -85000, days: 0, status: 'Approved', co: 'CO-003' },
-        { no: 'PCO-004', desc: 'Extra EV chargers in basement', value: 260000, days: 10, status: 'Submitted', co: '', source: 'MOM-14 (14 Oct 26)' },
+        { no: 'PCO-004', desc: 'Extra EV chargers in basement', value: 260000, days: 10, status: 'Submitted', co: '', source: 'MOM-14 (14 Oct 26)', thread: 'T-ev' },
         { no: 'PCO-005', desc: 'Façade bracket redesign after RFI-041', value: 540000, days: 28, status: 'Submitted', co: '' },
         { no: 'PCO-006', desc: 'Additional access control doors', value: 95000, days: 0, status: 'Potential', co: '' },
         { no: 'PCO-007', desc: 'Contractor claim for rain delay', value: 180000, days: 12, status: 'Rejected', co: '' },
@@ -614,12 +624,16 @@ window.Dash = (() => {
           ['Excavator', 1, [20, 16, 12, 10, 8], [28, 32, 30, 38, 40], [0, 0, 6, 0, 0]]];
         return weeks.flatMap((date, i) => eq.map(([equipment, qty, w, id, b]) => ({ date, equipment, qty, working: w[i], idle: id[i], breakdown: b[i], remarks: b[i] ? 'Breakdown repaired' : '' })));
       })(),
-      meetings: [{ id: 'sample-mom-14', ref: 'MOM-14', title: 'Progress meeting No. 14 (sample)', date: '2026-10-14', file: '', size: 0, uploaded: '2026-10-15', counts: { Variation: 1, Decision: 1, 'Critical issue': 1, Action: 1 } }],
+      meetings: [{ id: 'sample-mom-14', ref: 'MOM-14', title: 'Progress meeting No. 14 (sample)', date: '2026-10-14', file: '', size: 0, uploaded: '2026-10-15', counts: { Variation: 1, Decision: 1, 'Critical issue': 1, Action: 1 } },
+        { id: 'sample-mom-15', ref: 'MOM-15', title: 'Progress meeting No. 15 (sample)', date: '2026-10-28', file: '', size: 0, uploaded: '2026-10-29', counts: { Variation: 1, 'Critical issue': 1, Action: 1 } }],
       log: [
-        { date: '2026-10-14', mom: 'MOM-14', type: 'Variation', critical: 'No', text: 'Client instructed additional EV chargers in the basement; contractor to submit quotation.', owner: 'Contractor', due: '2026-10-28', wbs: '5.0', status: 'Open', meetingId: 'sample-mom-14' },
-        { date: '2026-10-14', mom: 'MOM-14', type: 'Decision', critical: 'No', text: 'Agreed that façade louvre sizes follow MEP drawing revision C.', owner: 'Consultant', due: '', wbs: '4.0', status: 'Closed', meetingId: 'sample-mom-14' },
-        { date: '2026-10-14', mom: 'MOM-14', type: 'Critical issue', critical: 'Yes', text: 'Façade panel delivery delayed three weeks; critical to the watertight milestone.', owner: 'Contractor', due: '2026-10-21', wbs: '4.0', status: 'Open', meetingId: 'sample-mom-14' },
-        { date: '2026-10-14', mom: 'MOM-14', type: 'Action', critical: 'No', text: 'Contractor to submit a revised three-week look-ahead programme.', owner: 'Contractor', due: '2026-10-21', wbs: '', status: 'Open', meetingId: 'sample-mom-14' },
+        { date: '2026-10-14', mom: 'MOM-14', type: 'Variation', critical: 'No', text: 'Client instructed additional EV chargers in the basement; contractor to submit quotation.', owner: 'Contractor', due: '2026-10-28', wbs: '5.0', status: 'Closed', meetingId: 'sample-mom-14', thread: 'T-ev' },
+        { date: '2026-10-14', mom: 'MOM-14', type: 'Decision', critical: 'No', text: 'Agreed that façade louvre sizes follow MEP drawing revision C.', owner: 'Consultant', due: '', wbs: '4.0', status: 'Closed', meetingId: 'sample-mom-14', thread: 'T-louvre' },
+        { date: '2026-10-14', mom: 'MOM-14', type: 'Critical issue', critical: 'Yes', text: 'Façade panel delivery delayed three weeks; critical to the watertight milestone.', owner: 'Contractor', due: '2026-10-21', wbs: '4.0', status: 'Closed', meetingId: 'sample-mom-14', thread: 'T-facade' },
+        { date: '2026-10-14', mom: 'MOM-14', type: 'Action', critical: 'No', text: 'Contractor to submit a revised three-week look-ahead programme.', owner: 'Contractor', due: '2026-10-21', wbs: '', status: 'Closed', meetingId: 'sample-mom-14', thread: 'T-prog' },
+        { date: '2026-10-28', mom: 'MOM-15', type: 'Variation', critical: 'No', text: 'Contractor submitted the EV charger quotation of AED 260,000; consultant to review and advise the client.', owner: 'Consultant', due: '2026-11-04', wbs: '5.0', status: 'Open', meetingId: 'sample-mom-15', thread: 'T-ev' },
+        { date: '2026-10-28', mom: 'MOM-15', type: 'Critical issue', critical: 'Yes', text: 'Façade panels: first batch delivered; remaining delay reduced to 10 days. Contractor to add a second installation crew.', owner: 'Contractor', due: '2026-11-04', wbs: '4.0', status: 'Open', meetingId: 'sample-mom-15', thread: 'T-facade' },
+        { date: '2026-10-28', mom: 'MOM-15', type: 'Action', critical: 'No', text: 'Revised look-ahead programme received and accepted by the consultant.', owner: 'Consultant', due: '', wbs: '', status: 'Closed', meetingId: 'sample-mom-15', thread: 'T-prog' },
       ],
       payments: [
         { date: '2026-01-10', category: 'Advance payment', payee: 'Main contractor', ref: 'APG-01', amount: 4800000, status: 'Paid' },
@@ -672,7 +686,8 @@ window.Dash = (() => {
   const IDX = 'cmg-projects-v1', PKEY = id => 'cmg-project-' + id;
   let projId = '', savedAt = '';
   const newId = () => 'p' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
-  function normalize(d) { const base = sample(); d = d || {}; for (const k of [...Object.keys(SCHEMA), 'meetings']) if (!Array.isArray(d[k])) d[k] = []; d.project = Object.assign(base.project, d.project || {}); return d; }
+  const newThread = () => 'T' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  function normalize(d) { const base = sample(); d = d || {}; for (const k of [...Object.keys(SCHEMA), 'meetings']) if (!Array.isArray(d[k])) d[k] = []; d.project = Object.assign(base.project, d.project || {}); for (const l of d.log) if (!l.thread) l.thread = newThread(); return d; }
   function index() { try { const s = JSON.parse(localStorage.getItem(IDX) || 'null'); if (s && Array.isArray(s.list)) return s; } catch (e) {} return { current: '', list: [] }; }
   function writeIndex(ix) { try { localStorage.setItem(IDX, JSON.stringify(ix)); } catch (e) {} }
   function load() {
@@ -1046,32 +1061,69 @@ window.Dash = (() => {
     ${review}
     <div class="dgrid">
       ${card('Meetings recorded', 'Stored files are compressed: small files are kept as they are, large ones as compressed page images.', tbl(['Date', 'Ref.', 'Title', 'Items added', 'File', ''], meetRows), 1)}
+      ${trailCard()}
       ${card('Project log', 'All decisions, actions, critical issues and variations, newest first. Edit or close them in the section below.', logTable([...L].sort(byDateDesc)), 1)}
     </div>`;
   }
   function reviewPanel() {
+    const ths = threads().sort((a, b) => dt(b.last.date) - dt(a.last.date)).slice(0, 60);
     const p = pending, sel = (k, i, v, opts) => `<select data-pi="${i}" data-pk="${k}">${opts.map(o => `<option${o === v ? ' selected' : ''}>${o}</option>`).join('')}</select>`;
     const rows = p.items.map((it, i) => `<tr class="${it.include ? '' : 'off'}"><td><input type="checkbox" data-pi="${i}" data-pk="include"${it.include ? ' checked' : ''} aria-label="Add this item"></td>
       <td>${sel('type', i, it.type, ['Decision', 'Action', 'Variation', 'Critical issue', 'Note'])}</td><td>${sel('critical', i, it.critical, ['No', 'Yes'])}</td>
       <td><textarea data-pi="${i}" data-pk="text" rows="2">${esc(it.text)}</textarea></td><td><input data-pi="${i}" data-pk="owner" value="${esc(it.owner)}"></td>
       <td><input type="date" data-pi="${i}" data-pk="due" value="${esc(it.due)}"></td><td><input data-pi="${i}" data-pk="wbs" list="dash-wbs2" value="${esc(it.wbs)}"></td>
       <td><input class="r" inputmode="decimal" data-pi="${i}" data-pk="value" value="${esc(it.value || '')}"></td><td><input class="r" inputmode="decimal" data-pi="${i}" data-pk="days" value="${esc(it.days || '')}"></td>
-      <td>${sel('pcoStatus', i, it.pcoStatus, ['Potential', 'Submitted', 'Approved'])}</td></tr>`).join('');
+      <td>${sel('pcoStatus', i, it.pcoStatus, ['Potential', 'Submitted', 'Approved'])}</td>
+      <td><select data-pi="${i}" data-pk="follow" class="fol"><option value="">New item</option>${ths.map(t => `<option value="${esc(t.id)}"${t.id === it.follow ? ' selected' : ''}>${esc(t.last.mom + ': ' + t.last.text.slice(0, 70))}</option>`).join('')}</select></td></tr>`).join('');
     return `<section class="card review"><h3>Review what was found: ${esc(p.fileName)}</h3>
       <div class="pform"><label>Meeting date<input type="date" data-pm="date" value="${esc(p.date)}"></label><label>Meeting reference<input data-pm="ref" value="${esc(p.ref)}" placeholder="e.g. MOM-15"></label><label>Title<input data-pm="title" value="${esc(p.title)}"></label></div>
-      <p class="cap">${p.items.length} items found. Untick anything that should not be added and correct the type, owner, dates, WBS or amounts. "Variation" rows become PCOs; set PCO status to Approved when the client approved or instructed it, and it is recorded as a change order.</p>
-      ${p.items.length ? `<div class="tw"><table class="ed rv"><thead><tr><th>Add</th><th>Type</th><th>Critical</th><th>Item</th><th>Owner</th><th>Due</th><th>WBS</th><th>Value</th><th>Days</th><th>PCO status</th></tr></thead><tbody>${rows}</tbody></table></div>` : '<p>No items were recognised. Check the extracted text below; you can paste corrected text instead.</p>'}
+      <p class="cap">${p.items.length} items found. Untick anything that should not be added and correct the type, owner, dates, WBS or amounts. "Variation" rows become PCOs; set PCO status to Approved when the client approved or instructed it, and it is recorded as a change order. "Follows up" links the minute to the same item in an earlier meeting (suggested automatically); the earlier entry is then closed and the trail continues.</p>
+      ${p.items.length ? `<div class="tw"><table class="ed rv"><thead><tr><th>Add</th><th>Type</th><th>Critical</th><th>Item</th><th>Owner</th><th>Due</th><th>WBS</th><th>Value</th><th>Days</th><th>PCO status</th><th>Follows up (trail)</th></tr></thead><tbody>${rows}</tbody></table></div>` : '<p>No items were recognised. Check the extracted text below; you can paste corrected text instead.</p>'}
       <datalist id="dash-wbs2">${D.wbs.map(w => `<option value="${esc(w.code)}">${esc(w.name)}</option>`).join('')}</datalist>
       <div class="acts"><button type="button" class="btn sm primary" data-act="mom-save">Add to project</button><button type="button" class="btn sm" data-act="mom-discard">Discard</button></div>
       <details class="xt"><summary>Show the extracted text</summary><pre>${esc(p.text.slice(0, 20000))}</pre></details></section>`;
   }
+  // ---------- item trail: link each new minute to the same item in earlier meetings ----------
+  const STOPW = new Set(['the', 'and', 'for', 'with', 'that', 'this', 'from', 'will', 'shall', 'have', 'been', 'into', 'than', 'they', 'their', 'there', 'were', 'which', 'contractor', 'consultant', 'client', 'owner', 'employer', 'submit', 'agreed', 'meeting', 'item', 'items', 'days', 'week', 'weeks']);
+  const toks = t => new Set((String(t).normalize('NFD').replace(/[̀-ͯ]/g, '').match(/[A-Za-z][A-Za-z0-9]*/g) || [])
+    .filter(w => w.length >= 4 || (w.length >= 2 && w === w.toUpperCase()))
+    .map(w => { w = w.toLowerCase(); return w.length > 4 && w.endsWith('s') ? w.slice(0, -1) : w; })
+    .filter(w => !STOPW.has(w)));
+  const jac = (a, b) => { let n = 0; for (const x of a) if (b.has(x)) n++; return n / ((a.size + b.size - n) || 1); };
+  function threads() {
+    const by = {}; for (const l of D.log) (by[l.thread] = by[l.thread] || []).push(l);
+    return Object.entries(by).map(([id, list]) => { list.sort(byDateAsc); return { id, list, last: list[list.length - 1] }; });
+  }
+  const byDateAsc = (a, b) => dt(a.date) - dt(b.date);
+  function suggestFollow(items) {
+    const cands = threads().filter(t => t.last.status !== 'Closed' || t.list.length > 0);
+    for (const it of items) {
+      const a = toks(it.text); let best = null, bs = 0;
+      for (const t of cands) {
+        let sc = Math.max(...t.list.map(l => jac(a, toks(l.text))));
+        if (it.wbs && t.last.wbs && String(it.wbs) === String(t.last.wbs)) sc += 0.12;
+        if (t.last.status === 'Closed') sc -= 0.08;
+        if (sc > bs) { bs = sc; best = t; }
+      }
+      it.follow = best && bs >= 0.28 ? best.id : '';
+    }
+  }
+  const CLOSE_RX = /\b(closed|completed|complete|resolved|done|received|accepted|issued|delivered in full|approved|finali[sz]ed)\b/i;
+  function trailCard() {
+    const ts = threads().filter(t => t.list.length > 1).sort((a, b) => dt(b.last.date) - dt(a.last.date));
+    if (!ts.length) return card('Item trail across meetings', 'Items followed up in later meetings appear here as a trail, oldest first.', '<p class="cap">No item has been followed up in a later meeting yet.</p>', 1);
+    return card('Item trail across meetings', 'Each item as it was recorded in successive meetings, oldest first, with its current status.',
+      '<div class="trails">' + ts.map(t => `<article class="trail"><header><span>${typeTag(t.last)}</span><b>${esc((w => w ? wbsLabel(w) : 'General')((t.list.find(l => l.wbs) || {}).wbs))}</b><span class="tag ${t.last.status === 'Closed' ? 'good' : 'warn'}">${esc(t.last.status)}</span><small class="cap">${t.list.length} meetings</small></header>
+        <ol>${t.list.map(l => `<li><div class="tl-when"><b>${esc(l.mom)}</b><small>${fmtD(l.date)}</small></div><div class="tl-what">${esc(l.text)}${l.owner ? ` <small class="cap">· ${esc(l.owner)}${l.due ? ', due ' + fmtD(l.due) : ''}</small>` : ''}</div></li>`).join('')}</ol></article>`).join('') + '</div>', 1);
+  }
+
   function setMomMsg() { const m = root && root.querySelector('[data-msg="mom"]'); if (m) m.textContent = momBusy + (queue.length ? ` · ${queue.length} more file(s) waiting` : ''); }
   async function processNext() {
     if (pending || busy || !queue.length) return;
     const file = queue.shift(); busy = true; momBusy = `Reading ${file.name}…`; setMomMsg();
     try {
       const text = await Mom.extractText(file, s => { momBusy = `${file.name}: ${s}`; setMomMsg(); });
-      const p = Mom.parse(text, file.name, D.wbs);
+      const p = Mom.parse(text, file.name, D.wbs); suggestFollow(p.items);
       pending = Object.assign(p, { fileName: file.name, file, text });
       momBusy = `${p.items.length} items found in ${file.name}. Review them below, then add them to the project.`;
     } catch (err) { momBusy = `${file.name}: ${err && err.message ? err.message : 'could not be read'}`; }
@@ -1083,13 +1135,24 @@ window.Dash = (() => {
     const p = pending; if (!p || busy) return;
     busy = true; momBusy = 'Saving…'; setMomMsg();
     const id = 'mom-' + Date.now().toString(36), ref = (p.ref || p.fileName.replace(/\.[^.]+$/, '')).slice(0, 40), date = p.date || D.project.dataDate;
-    const items = p.items.filter(x => x.include), counts = {};
+    const items = p.items.filter(x => x.include), counts = {}; let linked = 0, updated = 0;
     for (const it of items) {
       counts[it.type] = (counts[it.type] || 0) + 1;
-      D.log.push({ date, mom: ref, type: it.type, critical: it.critical, text: it.text, owner: it.owner, due: it.due, wbs: it.wbs, status: 'Open', meetingId: id });
-      if (it.type === 'Variation') {
+      const thread = it.follow || newThread();
+      if (it.follow && !it.wbs) { const w = D.log.filter(l => l.thread === it.follow && l.wbs).pop(); if (w) it.wbs = w.wbs; }
+      if (it.follow) for (const l of D.log) if (l.thread === it.follow) l.status = 'Closed';
+      D.log.push({ date, mom: ref, type: it.type, critical: it.critical, text: it.text, owner: it.owner, due: it.due, wbs: it.wbs, status: CLOSE_RX.test(it.text) && it.type !== 'Variation' && it.critical !== 'Yes' ? 'Closed' : 'Open', meetingId: id, thread });
+      if (it.follow) linked++;
+      const prior = it.type === 'Variation' && it.follow ? D.pcos.find(x => x.thread === it.follow) : null;
+      if (prior) {
+        if (num(it.value)) prior.value = num(it.value);
+        if (num(it.days)) prior.days = num(it.days);
+        if (it.pcoStatus === 'Approved' && prior.status !== 'Approved') { prior.status = 'Approved'; prior.co = prior.co || nextNo('CO-', D.pcos.map(x => x.co)); }
+        prior.source = (prior.source ? prior.source + '; ' : '') + `${ref} (${fmtD(date)})`;
+        updated++;
+      } else if (it.type === 'Variation') {
         const appr = it.pcoStatus === 'Approved';
-        D.pcos.push({ no: nextNo('PCO-', D.pcos.map(x => x.no)), desc: it.text.slice(0, 160), value: num(it.value), days: num(it.days), status: it.pcoStatus, co: appr ? nextNo('CO-', D.pcos.map(x => x.co)) : '', source: `${ref} (${fmtD(date)})` });
+        D.pcos.push({ no: nextNo('PCO-', D.pcos.map(x => x.no)), desc: it.text.slice(0, 160), value: num(it.value), days: num(it.days), status: it.pcoStatus, co: appr ? nextNo('CO-', D.pcos.map(x => x.co)) : '', source: `${ref} (${fmtD(date)})`, thread });
       }
     }
     const meet = { id, ref, title: p.title, date, file: p.file ? p.fileName : '', origSize: p.file ? p.file.size : 0, stored: 0, uploaded: new Date().toISOString().slice(0, 10), counts };
@@ -1101,7 +1164,7 @@ window.Dash = (() => {
     } catch (e) { note = ' The file itself could not be stored in this browser.'; }
     meet.stored = stored; save(); busy = false;
     const v = items.filter(x => x.type === 'Variation');
-    momBusy = `Added ${items.length} items from ${ref}${v.length ? `, including ${v.length} PCO(s)` : ''}.${stored && p.file ? ` Stored ${kb(stored)} (original ${kb(p.file.size)}).` : ''}${note}`;
+    momBusy = `Added ${items.length} items from ${ref}${v.length - updated ? `, including ${v.length - updated} new PCO(s)` : ''}${linked ? `; ${linked} followed up earlier items` : ''}${updated ? `; ${updated} existing PCO(s) updated` : ''}.${stored && p.file ? ` Stored ${kb(stored)} (original ${kb(p.file.size)}).` : ''}${note}`;
     render(); processNext();
   }
 
@@ -1642,7 +1705,7 @@ window.Dash = (() => {
     if (a === 'mom-paste') {
       const ta = root.querySelector('[data-mom-text]'), txt = ta ? ta.value.trim() : '';
       if (!txt) { momBusy = 'Paste the minutes text first.'; setMomMsg(); return; }
-      const p = Mom.parse(txt, 'Pasted text', D.wbs); pending = Object.assign(p, { fileName: 'Pasted text', file: null, text: txt });
+      const p = Mom.parse(txt, 'Pasted text', D.wbs); suggestFollow(p.items); pending = Object.assign(p, { fileName: 'Pasted text', file: null, text: txt });
       momBusy = `${p.items.length} items found in the pasted text. Review them below.`; render(); return;
     }
     if (a === 'mom-save') { commitPending(); return; }
