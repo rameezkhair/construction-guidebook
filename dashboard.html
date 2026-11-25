@@ -259,6 +259,7 @@ table.mintbl td:first-child{font-weight:700;white-space:nowrap}table.mintbl td:n
 .dfig.tall{min-height:360px}.lg.ctr{background:repeating-linear-gradient(90deg,var(--ink) 0 7px,transparent 7px 11px)}
 .alignbox{border-color:var(--warn);border-width:1.5px;margin-bottom:16px}.alignbox p{margin:6px 0}
 .okbar{margin:0 0 14px;padding:8px 12px;border-radius:8px;background:color-mix(in srgb,var(--good) 12%,transparent);color:var(--good);font-weight:700;font-size:14.5px}
+ul.plain{list-style:none;padding:0;margin:6px 0;font-size:14px}ul.plain li{padding:2px 0;max-width:none}
 
 </style>
 <script>new MutationObserver(()=>{for(const c of document.querySelectorAll('.stack td:not([data-l])')){let i=0,p=c;while(p=p.previousElementSibling)i+=p.colSpan;c.dataset.l=c.closest('table').rows[0].cells[i]?.textContent||''}}).observe(document,{childList:true,subtree:true})</script>
@@ -340,8 +341,11 @@ window.Mom = (() => {
     s = String(s || ''); let m;
     if ((m = s.match(/\b(\d{4})-(\d{1,2})-(\d{1,2})\b/))) return `${m[1]}-${pad(m[2])}-${pad(m[3])}`;
     if ((m = s.match(/\b(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{2,4})\b/))) { let y = +m[3]; if (y < 100) y += 2000; const d = +m[1], mo = +m[2]; if (mo >= 1 && mo <= 12 && d >= 1 && d <= 31) return `${y}-${pad(mo)}-${pad(d)}`; }
-    if ((m = s.match(/\b(\d{1,2})(?:st|nd|rd|th)?[\s\-]+(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?[\s,\-]+(\d{4})\b/i))) return `${m[3]}-${pad(MON.indexOf(m[2].toLowerCase().slice(0, 3)) + 1)}-${pad(m[1])}`;
-    if ((m = s.match(/\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+(\d{1,2})(?:st|nd|rd|th)?,?\s+(\d{4})\b/i))) return `${m[3]}-${pad(MON.indexOf(m[1].toLowerCase().slice(0, 3)) + 1)}-${pad(m[2])}`;
+    const yr = y => { y = +y; return y < 100 ? 2000 + y : y; };
+    // 15 Jan 2026, 15-Jan-26 (Primavera), 15/Jan/26
+    if ((m = s.match(/\b(\d{1,2})(?:st|nd|rd|th)?[\s\-\/]+(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?[\s,\-\/]+(\d{4}|\d{2})\b/i))) return `${yr(m[3])}-${pad(MON.indexOf(m[2].toLowerCase().slice(0, 3)) + 1)}-${pad(m[1])}`;
+    // Jan 15, 2026 and Jan-15-26
+    if ((m = s.match(/\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?[\s\-]+(\d{1,2})(?:st|nd|rd|th)?,?[\s\-]+(\d{4}|\d{2})\b/i))) return `${yr(m[3])}-${pad(MON.indexOf(m[1].toLowerCase().slice(0, 3)) + 1)}-${pad(m[2])}`;
     return '';
   }
   const RX = {
@@ -362,19 +366,32 @@ window.Mom = (() => {
     let v = parseFloat(numStr.replace(/,/g, '')); if (/^(k|thousand)$/i.test(unit)) v *= 1e3; if (/^(m|mn|million)$/i.test(unit)) v *= 1e6;
     return isFinite(v) ? v : 0;
   }
+  // Trade categories so that different wordings of the same work match each other.
+  const TRADES = [['prelims', /preliminar|general requirement|site establishment|mobili[sz]|demobili|site office|temporary works|supervision|overhead/],
+    ['sitework', /site ?works?|excavat|earthwork|enabling|demolition|dewater|backfill|grading|site clearance/],
+    ['substructure', /piling|piles|pile cap|foundation|basement|substructure|footing/],
+    ['concrete', /concrete|frame|slab|column|superstructure|formwork|rebar|reinforcement/],
+    ['steel', /steel|metal|struc?t?r?u?r?e? erection|purlin|cladding sheet/],
+    ['masonry', /masonry|blockwork|block work|brickwork|brick/],
+    ['waterproof', /thermal|moisture|waterproof|roofing|roof |insulation|damp/],
+    ['openings', /door|window|glaz|curtain ?wall|shopfront|louvre|ironmongery/],
+    ['facade', /facade|cladding|envelope|external wall/],
+    ['finishes', /finish|paint|ceiling|floor|tiling|plaster|joinery|fit-?out|partition|specialt/],
+    ['external', /external works|landscap|paving|road|boundary wall|hardscape|softscape/],
+    ['mechanical', /\bmep\b|mechanical|hvac|plumb|drainage|fire ?fighting|chiller|ductwork|sanitary/],
+    ['electrical', /\bmep\b|electrical|elect\.? eng|lighting|power|elv|low current|substation|cabling/],
+    ['lifts', /lift|elevator|escalator|conveying/],
+    ['commissioning', /testing|commission|handover|snag/]];
+  const tradesOf = s0 => { const T = String(s0).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase(); return TRADES.filter(([, rx]) => rx.test(T)).map(([k]) => k); };
   function wbsMatch(t, wbs) {
-    const norm = s => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
-    let T = norm(t); const stop = new Set(['and', 'the', 'works', 'work', 'site', 'setup', 'set', 'services', 'fit', 'out']);
-    const SYN = [[/mechanical|electrical|plumbing|hvac|fire ?fighting|drainage|chiller|ductwork/, ' mep'], [/cladding|curtain ?wall|glazing|facade|louvre|envelope/, ' facade envelope'],
-      [/finish|fit-?out|joinery|flooring|painting|ceiling|partition/, ' finishes'], [/landscap|external|paving|road|boundary/, ' external'],
-      [/piling|piles|foundation|excavation|basement|substructure|pile cap/, ' substructure'], [/frame|slab|column|structural|superstructure|concrete works/, ' superstructure'],
-      [/preliminar|general requirements|site establishment/, ' preliminaries']];
-    for (const [rx, add] of SYN) if (rx.test(T)) T += add;
-    for (const w of wbs) {
-      if (w.code && new RegExp(`(^|[^\\d.])${String(w.code).replace('.', '\\.')}([^\\d]|$)`).test(t) && /wbs|item|package|element/i.test(t)) return w.code;
-      const keys = norm(w.name).split(/[^a-z]+/).filter(k => k.length >= 3 && !stop.has(k));
-      if (keys.some(k => new RegExp(`\\b${k}`).test(T))) return w.code;
-    }
+    const norm = s0 => String(s0).normalize('NFD').replace(/[\u0300-\u036f]/g, '').toLowerCase();
+    const T = norm(t), stop = new Set(['and', 'the', 'works', 'work', 'site', 'setup', 'set', 'services', 'fit', 'out', 'installation', 'installations', 'eng', 'general', 'cont']);
+    for (const w of wbs) if (w.code && new RegExp(`(^|[^\\d.])${String(w.code).replace('.', '\\.')}([^\\d]|$)`).test(t) && /wbs|item|package|element/i.test(t)) return w.code;
+    // 1. same trade category
+    const tt = tradesOf(T);
+    if (tt.length) for (const w of wbs) { const wt = tradesOf(w.name); if (wt.some(k => tt.includes(k))) return w.code; }
+    // 2. a significant word in common
+    for (const w of wbs) { const keys = norm(w.name).split(/[^a-z]+/).filter(k => k.length >= 4 && !stop.has(k)); if (keys.some(k => new RegExp(`\\b${k}`).test(T))) return w.code; }
     return '';
   }
   function classify(t, wbs) {
@@ -477,7 +494,7 @@ window.Mom = (() => {
   async function usage() { try { const e = await navigator.storage.estimate(); return e.usage || 0; } catch (err) { return 0; } }
 
   // ---------- WBS baseline and contractor progress reports ----------
-  const DATE_RX = /\b\d{4}-\d{1,2}-\d{1,2}\b|\b\d{1,2}[\/.\-]\d{1,2}[\/.\-]\d{2,4}\b|\b\d{1,2}(?:st|nd|rd|th)?[\s\-]+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?[\s,\-]+\d{4}\b|\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+\d{1,2}(?:st|nd|rd|th)?,?\s+\d{4}\b/gi;
+  const DATE_RX = /\b\d{4}-\d{1,2}-\d{1,2}\b|\b\d{1,2}[\/.\-]\d{1,2}[\/.\-]\d{2,4}\b|\b\d{1,2}(?:st|nd|rd|th)?[\s\-\/]+(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?[\s,\-\/]+(?:\d{4}|\d{2})\b|\b(?:jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?[\s\-]+\d{1,2}(?:st|nd|rd|th)?,?[\s\-]+(?:\d{4}|\d{2})\b/gi;
   const CODE_RX = /^\(?((?:\d{1,3}\.)+\d{0,3}|\d{1,3}(?=\s))\)?\s+/;
   const docLines = text => String(text).replace(/\r/g, '').split('\n').map(l => l.replace(/\s+/g, ' ').trim()).filter(Boolean);
   function reportDate(lines) {
@@ -502,6 +519,33 @@ window.Mom = (() => {
     }
     return { rows };
   }
+  // Baseline programme (P6, MS Project, Excel export): activities with start and finish dates,
+  // matched to an existing WBS by code or by name.
+  function parseProgramme(text, wbs) {
+    const acts = [];
+    for (const l of docLines(text)) {
+      const ds = (l.match(DATE_RX) || []).map(parseDate).filter(Boolean);
+      if (!ds.length) continue;
+      let rest = l.replace(DATE_RX, ' ');
+      const idM = rest.match(/^\s*([A-Z]{0,5}[-_.]?\d[\w.\-]*)\s+/i);
+      const id = idM ? idM[1] : '';
+      if (idM) rest = rest.slice(idM[0].length);
+      const name = rest.replace(/\b\d+(?:\.\d+)?\s*(?:d|days?|wks?|weeks?|mons?|months?|%)\b/gi, ' ').replace(/\b\d[\d,.]*\b/g, ' ').replace(/[|*•▪]+/g, ' ').replace(/\s+/g, ' ').trim();
+      if (!name || name.length < 3 || /^(start|finish|activity|task|duration|baseline|planned|early|late)\b/i.test(name)) continue;
+      let code = '';
+      const c0 = id.replace(/\.$/, '');
+      const cands = [c0, /^\d+$/.test(c0) ? c0 + '.0' : ''].filter(Boolean);
+      const w1 = wbs.find(w => cands.includes(String(w.code)));
+      if (w1) code = w1.code; else code = wbsMatch(name, wbs) || '';
+      const sorted = [...ds].sort();
+      acts.push({ id, name: name.slice(0, 90), start: sorted[0], finish: sorted[sorted.length - 1] !== sorted[0] ? sorted[sorted.length - 1] : (ds[1] || ds[0]), code });
+    }
+    // One row per WBS element: earliest start and latest finish of its activities.
+    const by = {};
+    for (const a of acts) if (a.code) { const r = by[a.code] = by[a.code] || { include: true, code: a.code, start: a.start, finish: a.finish, n: 0 }; r.n++; if (a.start < r.start) r.start = a.start; if (a.finish > r.finish) r.finish = a.finish; }
+    return { rows: Object.values(by), acts, unmatched: acts.filter(a => !a.code) };
+  }
+
   function parseProgress(text, wbs) {
     const lines = docLines(text), date = reportDate(lines);
     // Column order: if a header names planned before actual, the actual % is the later one on each line.
@@ -652,7 +696,7 @@ window.Mom = (() => {
     };
   }
 
-  return { parseInvoice, parseIpc, extractText, parse, putFile, getFile, delFile, parseDate, compact, openStored, gunzip, usage, parseWbs, parseProgress, parseTender, parseBoq, wbsMatch };
+  return { parseInvoice, parseIpc, extractText, parse, putFile, getFile, delFile, parseDate, compact, openStored, gunzip, usage, parseWbs, parseProgress, parseTender, parseBoq, wbsMatch, parseProgramme };
 })();
 
 // Project dashboard: schedule and progress (WBS baseline + progress log), milestones, interfaces,
@@ -1418,7 +1462,7 @@ window.Dash = (() => {
     return `<section class="card upl"><h3>Update from documents</h3>
       <p class="cap">Upload the WBS baseline, or the contractor's progress report, as a PDF or a photo. The text is read in your browser; you review the result before it changes the project.</p>
       <div class="dgrid">
-        <label class="drop" data-drop-kind="wbs"><input type="file" accept=".pdf,image/*,.txt" data-act="wbs-file" hidden><b>Upload WBS baseline</b><span>Code, element, budget, start and finish dates</span></label>
+        <label class="drop" data-drop-kind="wbs"><input type="file" accept=".pdf,image/*,.txt" data-act="wbs-file" hidden><b>Upload baseline programme / WBS</b><span>Primavera, MS Project or Excel export: dates are matched to your WBS</span></label>
         <label class="drop" data-drop-kind="prog"><input type="file" accept=".pdf,image/*,.txt" data-act="prog-file" hidden><b>Upload contractor progress report</b><span>Actual % complete per WBS element</span></label>
       </div>
       <details class="paste"><summary>Or paste the document text</summary><textarea data-doc-text rows="6" placeholder="Paste the WBS baseline or progress report here"></textarea>
@@ -1467,6 +1511,20 @@ window.Dash = (() => {
         <label class="inl"><input type="checkbox" data-dm="createNew"${p.createNew ? ' checked' : ''}> Create WBS elements for unmapped bills (dates to be added)</label>
         <label class="inl"><input type="checkbox" data-dm="setContract"${p.setContract ? ' checked' : ''}> Set the contract sum to the BOQ total (${money(p.grand, true)})</label>
         <div class="acts"><button type="button" class="btn sm primary" data-act="doc-apply">Apply BOQ</button><button type="button" class="btn sm" data-act="doc-discard">Discard</button></div>
+        <details class="xt"><summary>Show the extracted text</summary><pre>${esc(p.text.slice(0, 20000))}</pre></details></section>`;
+    }
+    if (p.kind === 'programme') {
+      const rows = p.rows.map((r, i) => { const w = D.wbs.find(x => String(x.code) === String(r.code)) || {};
+        return `<tr class="${r.include ? '' : 'off'}"><td><input type="checkbox" data-di="${i}" data-dk="include"${r.include ? ' checked' : ''} aria-label="Use these dates"></td><td><b>${esc(r.code)}</b> ${esc(w.name || '')}</td>
+          <td>${w.start ? fmtD(w.start) + ' → ' + fmtD(w.finish) : '<span class="cap">no dates</span>'}</td><td><input type="date" data-di="${i}" data-dk="start" value="${esc(r.start)}"></td><td><input type="date" data-di="${i}" data-dk="finish" value="${esc(r.finish)}"></td><td class="r">${r.n}</td></tr>`; }).join('');
+      const missing = D.wbs.filter(w => !p.rows.some(r => String(r.code) === String(w.code)));
+      return `<section class="card review"><h3>Review baseline programme: ${esc(p.fileName)}</h3>
+        <p class="cap">Each WBS element takes the earliest start and the latest finish of the programme activities matched to it (by code, or by activity name and trade). Correct any date before applying.</p>
+        ${p.rows.length ? `<div class="tw"><table class="ed rv"><thead><tr><th>Use</th><th>WBS element</th><th>Current baseline</th><th>Programme start</th><th>Programme finish</th><th>Activities</th></tr></thead><tbody>${rows}</tbody></table></div>` : '<p>No programme activities could be matched to the WBS. Check the extracted text below; activity names should mention the trade (e.g. concrete, blockwork, MEP).</p>'}
+        ${missing.length ? `<p class="cap"><b>No activities found for:</b> ${missing.map(w => esc(w.code + ' ' + w.name)).join('; ')}. Their dates stay as they are; enter them in "Edit WBS baseline".</p>` : ''}
+        ${p.unmatched.length ? `<details class="xt"><summary>${p.unmatched.length} programme activities not matched to a WBS element</summary><ul class="plain">${p.unmatched.slice(0, 80).map(a => `<li>${esc(a.id)} ${esc(a.name)}: ${fmtD(a.start)} → ${fmtD(a.finish)}</li>`).join('')}</ul></details>
+          <label class="inl"><input type="checkbox" data-dm="addUnmatched"${p.addUnmatched ? ' checked' : ''}> Add the unmatched activities as new WBS elements</label>` : ''}
+        <div class="acts"><button type="button" class="btn sm primary" data-act="doc-apply">Apply programme dates to the WBS baseline</button><button type="button" class="btn sm" data-act="doc-discard">Discard</button></div>
         <details class="xt"><summary>Show the extracted text</summary><pre>${esc(p.text.slice(0, 20000))}</pre></details></section>`;
     }
     if (p.kind === 'wbs') {
@@ -1588,12 +1646,17 @@ window.Dash = (() => {
       const r = Mom.parseBoq(text, D.wbs);
       docPend = Object.assign(r, { kind, text, fileName, setBudgets: true, createNew: true, setContract: false });
       docBusy = `${r.rows.length} bills or sections found in ${fileName} (total ${money(r.grand, true)}). Review the WBS mapping below.`;
+    } else if (kind === 'wbs' && D.wbs.length) {
+      const r = Mom.parseProgramme(text, D.wbs);
+      docPend = Object.assign(r, { kind: 'programme', text, fileName, addUnmatched: false });
+      docBusy = `Baseline programme read from ${fileName}: ${r.acts.length} activities, dates found for ${r.rows.length} of ${D.wbs.length} WBS elements${r.unmatched.length ? `, ${r.unmatched.length} activities not matched` : ''}. Review below.`;
     } else {
       const r = kind === 'wbs' ? Mom.parseWbs(text) : Mom.parseProgress(text, D.wbs);
       docPend = Object.assign(r, { kind, text, fileName, mode: 'merge', setDate: true });
       docBusy = `${r.rows.length} ${kind === 'wbs' ? 'WBS rows' : 'progress values'} found in ${fileName}. Review them below.`;
     }
     tab = ['tender', 'boq', 'sub'].includes(kind) ? 'contract' : 'schedule'; render();
+    const rv = root.querySelector('.review'); if (rv) rv.scrollIntoView();
   }
   const TENDER_FIELDS = [['name', 'Project name'], ['employer', 'Employer / client'], ['contractor', 'Contractor'], ['currency', 'Currency'], ['contract', 'Contract sum'],
     ['commencement', 'Commencement date'], ['completion', 'Completion date'], ['periodDays', 'Time for completion (days)'], ['retention', 'Retention %'], ['advance', 'Advance payment %'],
@@ -1605,8 +1668,32 @@ window.Dash = (() => {
     const st = D.wbs.map(w => dt(w.start)).filter(isFinite), fi = D.wbs.map(w => dt(w.finish)).filter(isFinite);
     return st.length && fi.length ? { start: Math.min(...st), finish: Math.max(...fi) } : null;
   }
+  // Typical share of the contract period for each kind of work (start, finish as fractions).
+  function phaseFrac(name) {
+    const n = String(name).toLowerCase();
+    const P = [[/general requirement|preliminar|site establishment|supervision|overhead/, 0, 1], [/site work|excavat|earthwork|enabling|demolition|piling|substructure|foundation|dewater/, 0, 0.25],
+      [/concrete|frame|superstructure|structural|formwork|rebar/, 0.05, 0.55], [/steel|metal/, 0.25, 0.6], [/masonry|blockwork|brick/, 0.3, 0.7],
+      [/thermal|moisture|waterproof|roof|insulation/, 0.4, 0.75], [/door|window|glaz|curtain|facade|façade|cladding/, 0.5, 0.85],
+      [/mechanical|plumb|hvac|drainage|fire|electrical|mep|elv|low current/, 0.2, 0.95], [/finish|paint|ceiling|floor|tiling|joinery|fit-?out|specialt/, 0.55, 0.95],
+      [/external|landscap|paving|road|boundary/, 0.75, 1], [/lift|elevator|escalator|equipment|conveying/, 0.6, 0.92], [/testing|commission|handover/, 0.85, 1]];
+    for (const [rx, a, b] of P) if (rx.test(n)) return [a, b];
+    return [0, 1];
+  }
+  function genBaseline() {
+    const cs = dt(D.project.commencement), cf = dt(D.project.completion);
+    if (!isFinite(cs) || !isFinite(cf) || cf <= cs) return 'Enter the commencement and completion dates on the Contract & BOQ tab first.';
+    const iso = t => new Date(Math.round(t / DAY) * DAY).toISOString().slice(0, 10);
+    let n = 0;
+    for (const w of D.wbs) if (!isFinite(dt(w.start)) || !isFinite(dt(w.finish))) { const [a, b] = phaseFrac(w.name); w.start = iso(cs + a * (cf - cs)); w.finish = iso(cs + b * (cf - cs)); if (!num(w.complexity)) w.complexity = 3; n++; }
+    return `Baseline dates generated for ${n} WBS element${n === 1 ? '' : 's'} within the contract period, using a typical construction sequence. Adjust any date in "Edit WBS baseline".`;
+  }
   function contractCheck() {
     const b = baselineSpan(), cs = dt(D.project.commencement), cf = dt(D.project.completion);
+    const undated = D.wbs.filter(w => !isFinite(dt(w.start)) || !isFinite(dt(w.finish)));
+    if (undated.length && isFinite(cs) && isFinite(cf)) return `<section class="card alignbox"><h3>${undated.length} of ${D.wbs.length} WBS elements have no baseline dates</h3>
+      <p>Without dates there are no programme bars and no planned curve. Generate them from the contract period (${fmtD(D.project.commencement)} → ${fmtD(D.project.completion)}) using a typical construction sequence, then adjust as needed.</p>
+      <div class="acts"><button type="button" class="btn sm primary" data-act="align-gen">Generate baseline dates from the contract period</button></div></section>`;
+    if (undated.length) return `<section class="card alignbox"><h3>${undated.length} WBS elements have no baseline dates</h3><p>Enter the contract commencement and completion on the Contract & BOQ tab, then generate the baseline from them, or enter dates in "Edit WBS baseline".</p></section>`;
     if (!b || !isFinite(cs) || !isFinite(cf)) return '';
     const ds = Math.round((b.start - cs) / DAY), df = Math.round((b.finish - cf) / DAY);
     if (Math.abs(ds) <= 1 && Math.abs(df) <= 1) return `<p class="okbar">Baseline programme matches the contract period: ${fmtD(D.project.commencement)} → ${fmtD(D.project.completion)}.</p>`;
@@ -1919,6 +2006,14 @@ window.Dash = (() => {
       Mom.compact(p.file, p.text, () => {}).then(rec => Mom.putFile(row.fileId, rec)).then(() => { row.stored = true; save(); }).catch(() => {});
       return;
     }
+    if (p.kind === 'programme') {
+      let n = 0, added = 0;
+      for (const r of p.rows.filter(x => x.include)) { const w = D.wbs.find(x => String(x.code) === String(r.code)); if (w && r.start && r.finish) { w.start = r.start; w.finish = r.finish; n++; } }
+      if (p.addUnmatched) for (const a of p.unmatched) { if (!a.start || !a.finish || a.start === a.finish) continue; const c = Math.max(0, ...D.wbs.map(w => parseInt(w.code, 10) || 0)) + 1; D.wbs.push({ code: c + '.0', name: a.name, budget: 0, start: a.start, finish: a.finish, pred: '', complexity: 3 }); added++; }
+      syncContract(); docPend = null; save();
+      docBusy = `Baseline dates applied to ${n} WBS element${n === 1 ? '' : 's'} from ${p.fileName}${added ? `; ${added} new elements added` : ''}. The programme, CPM, S-curve and planned line now follow the uploaded baseline.`;
+      render(); return;
+    }
     const rows = p.rows.filter(r => r.include);
     if (p.kind === 'tender') {
       for (const r of rows) D.project[r.key] = P_NUM.includes(r.key) ? num(r.value) : r.value;
@@ -2127,11 +2222,12 @@ window.Dash = (() => {
     if (mtLane) {
       const y = top + D.wbs.length * rowH + msLane + 20;
       s += `<line x1="${x0}" x2="${x1}" y1="${y}" y2="${y}" stroke="var(--line)"/><text x="0" y="${y + 4}" font-size="12.5" font-weight="700" fill="var(--ink)">Meetings</text>`;
-      for (const m of D.meetings) {
+      let lastMx = -99;
+      for (const m of [...D.meetings].sort((p, q) => dt(p.date) - dt(q.date))) {
         const t = dt(m.date); if (!isFinite(t)) continue;
         const items = D.log.filter(l => l.meetingId === m.id), crit = items.some(l => l.critical === 'Yes' && l.status !== 'Closed');
         s += `<circle cx="${X(t)}" cy="${y}" r="7" fill="${crit ? 'var(--bad)' : 'var(--c-ev)'}" stroke="var(--bg)" stroke-width="2"><title>${esc(m.ref + ' · ' + fmtD(m.date) + ' · ' + items.length + ' items' + (crit ? ', open critical items' : ''))}</title></circle>`;
-        if (!small) s += `<text x="${X(t)}" y="${y + 20}" font-size="10.5" text-anchor="middle" fill="var(--muted)">${esc(m.ref)}</text>`;
+        if (!small && X(t) - lastMx > 46) { lastMx = X(t); s += `<text x="${X(t)}" y="${y + 20}" font-size="10.5" text-anchor="middle" fill="var(--muted)">${esc(String(m.ref).slice(0, 10))}</text>`; }
       }
     }
     const dx = X(tnow);
@@ -2188,7 +2284,9 @@ window.Dash = (() => {
     const cert = ms.map((t, i) => t <= lastIpc ? [i, sum(D.ipcs.filter(r => mEnd(r.period) <= t), r => r.certified)] : null);
     const paid = ms.map((t, i) => t <= Math.max(lastPaid, lastIpc) ? [i, sum(D.ipcs.filter(r => r.paidDate && dt(r.paidDate) <= t), r => r.paid)] : null);
     const bac = sum(D.wbs, w => w.budget), scale = bac && revised ? revised / bac : 1;
-    const plan = D.wbs.length ? ms.map((t, i) => [i, PV(t) * scale]) : [];
+    let plan = D.wbs.some(w => isFinite(dt(w.start)) && isFinite(dt(w.finish))) && bac ? ms.map((t, i) => [i, PV(t) * scale]) : [];
+    const cS = dt(D.project.commencement), cF = dt(D.project.completion);
+    if (!plan.length && revised && isFinite(cS) && isFinite(cF) && cF > cS) { plan = ms.map((t, i) => { const u = Math.min(1, Math.max(0, (t - cS) / (cF - cS))); return [i, revised * u * u * (3 - 2 * u)]; }); notes.push('Planned line is a standard S-curve over the contract period until the WBS baseline has dates.'); }
     const top = Math.max(revised, contract, ...cert.filter(Boolean).map(q => q[1]), ...paid.filter(Boolean).map(q => q[1]), ...plan.map(q => q[1]), 1);
     const small = W < 520, m = { l: 58, r: small ? 12 : 150, t: 14, b: 26 }, max = niceMax(top * 1.04);
     const x = i => m.l + (ms.length === 1 ? (W - m.l - m.r) / 2 : (W - m.l - m.r) * i / (ms.length - 1)), y = v => H - m.b - (H - m.t - m.b) * v / max;
@@ -2356,6 +2454,7 @@ window.Dash = (() => {
       })();
       return;
     }
+    if (a === 'align-gen') { const m = genBaseline(); save(); render(); const p = root.querySelector('[data-msg="proj"]'); if (p) p.textContent = m; return; }
     if (a === 'align-fit' || a === 'align-shift') { const m = alignBaseline(a === 'align-fit' ? 'fit' : 'shift'); save(); render(); const p = root.querySelector('[data-msg="proj"]'); if (p) p.textContent = m; return; }
     if (a === 'ipc-del') { const no = b.dataset.id; if (ipcDelArm !== no) { ipcDelArm = no; render(); setTimeout(() => { if (ipcDelArm === no) { ipcDelArm = ''; if (root.isConnected) render(); } }, 6000); return; } const r = D.ipcs.find(x => x.no === no); if (r && r.fileId) Mom.delFile(r.fileId); D.ipcs = D.ipcs.filter(x => x.no !== no); ipcDelArm = ''; save(); docBusy = `Deleted ${no}.`; render(); return; }
     if (a && a.startsWith('doc-paste-')) { const ta = root.querySelector('[data-doc-text]'), txt = ta ? ta.value.trim() : ''; if (!txt) { docBusy = 'Paste the document text first.'; setDocMsg(); return; } readDoc(a.slice(10), txt, 'Pasted text'); return; }

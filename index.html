@@ -259,6 +259,7 @@ table.mintbl td:first-child{font-weight:700;white-space:nowrap}table.mintbl td:n
 .dfig.tall{min-height:360px}.lg.ctr{background:repeating-linear-gradient(90deg,var(--ink) 0 7px,transparent 7px 11px)}
 .alignbox{border-color:var(--warn);border-width:1.5px;margin-bottom:16px}.alignbox p{margin:6px 0}
 .okbar{margin:0 0 14px;padding:8px 12px;border-radius:8px;background:color-mix(in srgb,var(--good) 12%,transparent);color:var(--good);font-weight:700;font-size:14.5px}
+ul.plain{list-style:none;padding:0;margin:6px 0;font-size:14px}ul.plain li{padding:2px 0;max-width:none}
 
 </style>
 <script>new MutationObserver(()=>{for(const c of document.querySelectorAll('.stack td:not([data-l])')){let i=0,p=c;while(p=p.previousElementSibling)i+=p.colSpan;c.dataset.l=c.closest('table').rows[0].cells[i]?.textContent||''}}).observe(document,{childList:true,subtree:true})</script>
