@@ -1,6 +1,6 @@
-# Construction Management Guidebook
+# Construction Management
 
-Website: **https://rameezkhair.github.io/construction-guidebook/**
+Web application: **https://rameezkhair.github.io/construction-guidebook/** (Guidebook) and **https://rameezkhair.github.io/construction-guidebook/dashboard.html** (Project dashboard)
 
 A phase-by-phase guide to managing construction projects with PMI-CP tools and techniques: situations and how to solve them, contract structure and clauses, scope governance, communication planning, a glossary and ready-to-fill templates.
 

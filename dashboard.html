@@ -1,0 +1,1217 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Project dashboard · Construction Management</title>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+<link href="https://fonts.googleapis.com/css2?family=Archivo:wght@400;500;600;700;800&display=swap" rel="stylesheet">
+<style>
+/* VOICE: a site engineer's reference: direct, practical, calm; tables do the work.
+   IDEA: a drawing set. Each page is a numbered sheet with a title block; home is the master programme.
+   PICTURE: the master programme as a Gantt on blueprint, six phase bars with stage gates, clickable.
+   COLOUR and TYPE: blueprint blue band, white sheets, hi-vis orange only for focus phases and the active item; Archivo throughout.
+   LAYOUT: sticky top bar with search; drawing register (nav) left, sheet right; stacks under 900px. */
+:root{color-scheme:light dark;
+  --bg:light-dark(#ffffff,#0b1220);--ink:light-dark(#12213b,#e7edf7);--muted:light-dark(#4a5a75,#a3b3ca);
+  --line:light-dark(#d8dfe9,#24334d);--th:light-dark(#eef3fb,#131f37);--link:light-dark(#0b4fc4,#8fb9ff);
+  --bp:light-dark(#0f3f8f,#0c2c66);--bp2:light-dark(#0b3274,#09224f);--hv:#ff6b1a;--hvink:light-dark(#b84300,#ff9a5c)}
+:root[data-theme=light]{color-scheme:light}:root[data-theme=dark]{color-scheme:dark}
+*{box-sizing:border-box;min-width:0}
+html{scroll-padding-top:80px}
+body{margin:0;background:var(--bg);color:var(--ink);font:16px/1.6 Archivo,system-ui,sans-serif;overflow-x:clip}
+a{color:var(--link);text-underline-offset:2px}
+a:focus-visible,button:focus-visible,input:focus-visible,summary:focus-visible{outline:3px solid var(--hv);outline-offset:2px}
+.top{display:flex;gap:16px;align-items:center;flex-wrap:wrap;padding:10px max(4vw,16px);background:var(--bp2);color:#fff}
+@media(min-width:900px){.top{position:sticky;top:0;z-index:5}}
+.brand{display:flex;gap:10px;align-items:center;color:#fff;text-decoration:none;font-weight:800;font-size:17px;line-height:1.2;margin-right:auto}
+.brand svg{flex:none}
+.top input{width:min(340px,100%);height:44px;border-radius:8px;border:1px solid #ffffff55;background:#ffffff14;color:#fff;font:inherit;font-size:16px;padding:0 14px}
+.top input::placeholder{color:#d6e2ff}
+.hero{background:var(--bp);color:#fff;padding:clamp(28px,4vw,56px) max(5vw,16px);
+  background-image:linear-gradient(#ffffff10 1px,transparent 1px),linear-gradient(90deg,#ffffff10 1px,transparent 1px);background-size:28px 28px}
+.hero-in{max-width:1240px;margin:0 auto;display:grid;gap:clamp(20px,3vw,40px);grid-template-columns:minmax(0,5fr) minmax(0,7fr);align-items:center}
+.hero h1{font-size:clamp(32px,4.4vw,52px);line-height:1.05;margin:0 0 14px;font-weight:800;text-wrap:balance}
+.hero p{margin:0 0 10px;color:#dfe8ff;max-width:52ch}
+.hero .go{display:inline-flex;align-items:center;min-height:44px;padding:0 18px;margin-top:10px;border-radius:8px;background:var(--hv);color:#1a0d00;font-weight:700;text-decoration:none}
+.fig{position:relative;min-height:400px}.fig>svg{position:absolute;inset:0;width:100%;height:100%}
+.fig a text{cursor:pointer}.fig a:hover rect.bar{filter:brightness(1.12)}
+.hero .go.alt{background:transparent;color:#fff;border:1.5px solid #fff;margin-left:8px}
+@media(max-width:900px){.hero-in{grid-template-columns:minmax(0,1fr)}}
+.wrap{max-width:1240px;margin:0 auto;display:grid;grid-template-columns:270px minmax(0,1fr);gap:40px;padding:28px max(4vw,16px) 64px}
+nav.reg{font-size:14.5px;line-height:1.35}
+@media(min-width:900px){nav.reg{position:sticky;top:84px;max-height:calc(100vh - 100px);overflow:auto;padding-right:8px}}
+nav.reg summary{display:none}
+nav.reg h4{margin:18px 0 6px;font-size:13px;font-weight:700;color:var(--muted)}
+nav.reg h4:first-of-type{margin-top:0}
+nav.reg a{display:block;padding:7px 10px;border-radius:6px;color:var(--ink);text-decoration:none;border-left:3px solid transparent}
+nav.reg a:hover{background:var(--th)}
+nav.reg a[aria-current]{border-left-color:var(--hv);background:var(--th);font-weight:700}
+@media(max-width:900px){.wrap{grid-template-columns:minmax(0,1fr);gap:16px}
+  nav.reg{border:1px solid var(--line);border-radius:10px;padding:0 12px}
+  nav.reg summary{display:flex;align-items:center;min-height:48px;font-weight:700;cursor:pointer}
+  nav.reg:not([open])>div{display:none}nav.reg>div{padding-bottom:12px}}
+.sheet{max-width:900px}
+.tblock{display:flex;flex-wrap:wrap;border:1.5px solid var(--ink);font-size:13px;margin-bottom:22px}
+.tblock span{padding:6px 12px;border-right:1px solid var(--ink)}.tblock span:last-child{border-right:0;margin-left:auto}
+.tblock b{font-weight:700}
+article h1{font-size:clamp(28px,3.6vw,40px);line-height:1.1;margin:0 0 14px;text-wrap:balance}
+article h2{font-size:24px;line-height:1.2;margin:40px 0 12px;padding-top:14px;border-top:2px solid var(--ink)}
+article h3{font-size:18.5px;line-height:1.3;margin:28px 0 8px}
+article p,article li{max-width:72ch}
+article ul,article ol{padding-left:22px}article li{margin:4px 0}
+li.task{list-style:none;margin-left:-22px}li.task label{display:flex;gap:10px;align-items:flex-start;cursor:pointer}
+li.task input{width:20px;height:20px;margin-top:3px;flex:none;accent-color:var(--hv)}
+.lede{font-size:17px;color:var(--muted)}
+.tw{overflow-x:auto;margin:14px 0 20px;border:1px solid var(--line);border-radius:8px}
+table{border-collapse:collapse;width:100%;font-size:14.5px;line-height:1.45}
+th{background:var(--th);text-align:left;font-weight:700;vertical-align:bottom}
+th,td{padding:9px 12px;border-bottom:1px solid var(--line);vertical-align:top}
+tbody tr:last-child td{border-bottom:0}
+td:first-child{font-weight:600}
+.wide table{min-width:900px}.wide td:first-child{font-weight:400}
+code{font-size:.92em;background:var(--th);padding:1px 5px;border-radius:4px;overflow-wrap:anywhere}
+pre{overflow-x:auto;background:var(--th);padding:14px;border-radius:8px}
+pre.mermaid{background:transparent;border:1px solid var(--line);text-align:center;font-size:12px}
+pre.mermaid:not([data-processed]){text-align:left;color:var(--muted)}
+hr{border:0;border-top:1px solid var(--line);margin:28px 0}
+.btn{min-height:44px;padding:0 18px;border-radius:8px;border:1.5px solid var(--ink);background:var(--bg);color:var(--ink);font:inherit;font-weight:700;cursor:pointer}
+.btn:hover{background:var(--th)}.note{color:var(--muted);font-size:14px}
+.pn{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1fr);gap:12px;margin-top:48px}
+.pn a{display:block;padding:14px 16px;border:1px solid var(--line);border-radius:10px;text-decoration:none;color:var(--ink);min-height:44px}
+.pn a:hover{border-color:var(--ink)}.pn small{display:block;color:var(--muted);font-size:13px}
+.pn .next{text-align:right;grid-column:2}
+.res{list-style:none;padding:0}.res li{padding:14px 0;border-bottom:1px solid var(--line);max-width:none}
+.res a{font-weight:700;font-size:17px}.res p{margin:4px 0 0;color:var(--muted);font-size:14.5px}
+mark{background:#ffd9c2;color:#1a0d00;border-radius:2px}
+footer{border-top:1px solid var(--line);padding:20px max(4vw,16px);font-size:13px;color:var(--muted);text-align:center}
+@media(prefers-reduced-motion:no-preference){.bar{transition:filter .15s}}
+/* Dashboard */
+:root{--c-pv:light-dark(#7d8aa3,#8494b0);--c-ev:light-dark(#0b4fc4,#6ea8ff);--c-ac:#ff6b1a;--c-ap:light-dark(#b9c6dc,#3a4d70);--c-ce:light-dark(#0b4fc4,#6ea8ff);--c-pa:light-dark(#0f8a5f,#3ccf91);
+  --good:light-dark(#0f8a5f,#3ccf91);--warn:light-dark(#b26a00,#f0b14a);--bad:light-dark(#c0362c,#ff7b6e)}
+main.full{max-width:none}
+.dtabs{display:flex;gap:4px;border-bottom:2px solid var(--ink);margin:6px 0 18px}
+.dtabs button{min-height:44px;padding:0 18px;border:0;background:none;color:var(--muted);font:inherit;font-weight:700;cursor:pointer;border-bottom:4px solid transparent;margin-bottom:-2px}
+.dtabs button[aria-selected=true]{color:var(--ink);border-bottom-color:var(--hv)}
+.kpis{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,150px),1fr));gap:12px;margin-bottom:16px}
+.kpi{border:1px solid var(--line);border-top:4px solid var(--line);border-radius:8px;padding:12px 14px;display:flex;flex-direction:column;gap:2px}
+.kpi span{font-size:13px;color:var(--muted);font-weight:600}.kpi b{font-size:clamp(22px,2.4vw,28px);line-height:1.15;font-variant-numeric:tabular-nums}.kpi small{font-size:13px;color:var(--muted)}
+.kpi.good{border-top-color:var(--good)}.kpi.warn{border-top-color:var(--warn)}.kpi.bad{border-top-color:var(--bad)}
+.kpi.good b{color:var(--good)}.kpi.bad b{color:var(--bad)}
+.dgrid{display:grid;grid-template-columns:repeat(2,minmax(0,1fr));gap:16px}
+.card{border:1px solid var(--line);border-radius:10px;padding:16px 18px}.card.span2{grid-column:1/-1}
+.card h3{margin:0 0 4px;font-size:17px}.cap{margin:0 0 10px;font-size:13.5px;color:var(--muted)}
+@media(max-width:760px){.dgrid{grid-template-columns:minmax(0,1fr)}}
+.dfig{min-height:280px}.dfig.sm{min-height:220px}
+.legend{display:flex;flex-wrap:wrap;gap:6px 16px;font-size:13px;color:var(--muted);align-items:center;margin-bottom:6px}
+.legend span{white-space:nowrap}.lg{display:inline-block;width:18px;height:4px;border-radius:2px;margin-right:6px;vertical-align:middle}
+.lg.pv{background:repeating-linear-gradient(90deg,var(--c-pv) 0 6px,transparent 6px 9px)}.lg.ev{background:var(--c-ev)}.lg.ac{background:var(--c-ac)}
+.lg.ap{background:var(--c-ap);height:10px}.lg.ce{background:var(--c-ce);height:10px}.lg.pa{background:var(--c-pa);height:10px}
+.wrow{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.1fr);gap:12px;align-items:center;padding:7px 0;border-bottom:1px solid var(--line)}
+.wrow:last-child{border-bottom:0}.wl{font-size:14px;line-height:1.3}.wl small{display:block;color:var(--muted);font-size:12.5px}
+.track{position:relative;height:14px;background:var(--th);border-radius:7px}
+.fill{height:100%;border-radius:7px}.fill.ok{background:var(--good)}.fill.slip{background:var(--warn)}.fill.late{background:var(--bad)}
+.mark{position:absolute;top:-4px;width:3px;height:22px;background:var(--ink);border-radius:2px;transform:translateX(-1.5px)}
+.heat{display:grid;grid-template-columns:auto minmax(0,1fr);grid-template-rows:minmax(0,1fr) auto;gap:6px;max-width:360px}
+.hy{writing-mode:vertical-rl;transform:rotate(180deg);font-size:12px;color:var(--muted);text-align:center}
+.hx{grid-column:2;text-align:center;font-size:12px;color:var(--muted)}
+.hg{display:grid;grid-template-columns:20px repeat(5,minmax(0,1fr));gap:4px}
+.hl{font-size:12px;color:var(--muted);display:grid;place-items:center}
+.hc{aspect-ratio:1;border-radius:5px;display:grid;place-items:center;font-weight:800;font-size:15px;color:#1a1a1a;opacity:.45}.hc.has{opacity:1}
+.hz1,.sc.hz1{background:#cfe9d9}.hz2,.sc.hz2{background:#ffd98a}.hz3,.sc.hz3{background:#ff9c8f}
+.sc{display:inline-block;min-width:30px;text-align:center;border-radius:4px;padding:1px 6px;font-weight:700;color:#1a1a1a}
+.prow{display:grid;grid-template-columns:110px minmax(0,1fr) 84px;gap:10px;align-items:center;padding:7px 0;font-size:14px}
+.prow b{text-align:right;font-variant-numeric:tabular-nums}.prow small{color:var(--muted)}
+.st-potential{background:var(--c-ap)}.st-submitted{background:var(--warn)}.st-approved{background:var(--good)}.st-rejected{background:var(--bad);opacity:.6}
+table.mini{font-size:13.5px}.r{text-align:right;font-variant-numeric:tabular-nums;white-space:nowrap}
+tr.tot td{font-weight:700;border-top:2px solid var(--ink)}
+.pform{display:grid;grid-template-columns:repeat(auto-fit,minmax(min(100%,200px),1fr));gap:12px}
+.pform label{display:flex;flex-direction:column;gap:4px;font-size:13px;font-weight:600;color:var(--muted)}
+.pform input,table.ed input,table.ed select{font:inherit;font-size:16px;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:6px;min-height:40px;padding:4px 8px;width:100%}
+table.ed{min-width:720px}table.ed td{padding:4px;border-bottom:1px solid var(--line)}table.ed td:first-child{font-weight:400}table.ed th{font-size:13px}
+table.ed input.r{text-align:right}table.ed td:nth-child(2) input:not(.r){min-width:240px}
+.x{width:40px;height:40px;border:1px solid var(--line);border-radius:6px;background:var(--bg);color:var(--bad);font-size:20px;cursor:pointer}
+.btn.sm{min-height:42px;padding:0 14px;font-size:14.5px}.acts{display:flex;flex-wrap:wrap;gap:8px}.file{display:inline-flex;align-items:center}
+.dbody .card+.card{margin-top:0}.dbody>.card{margin-bottom:16px}
+:root{--c-bl:light-dark(#dbe3ef,#2a3a57)}
+.dtabs{overflow-x:auto;scrollbar-width:thin}.dtabs button{flex:none;white-space:nowrap}
+.dfig.auto{min-height:0}.dfig.auto>svg{position:static;display:block;width:100%}
+.lg.bl{background:var(--c-bl);height:10px}.lg.ok{background:var(--good);height:10px}.lg.late{background:var(--bad);height:10px}.lg.dd{background:var(--hv);width:3px;height:14px}
+.lg.ok2{background:var(--c-pa)}.lg.pe{background:var(--warn);height:10px}
+.lg.mx-late,.lg.mx-open,.lg.mx-agreed,.lg.mx-done{width:14px;height:14px;border-radius:3px}
+.mx-late{background:#ff9c8f}.mx-open{background:#ffd98a}.mx-agreed{background:#b9d3ff}.mx-done{background:#bfe6cf}
+table.mx{width:auto;min-width:100%;font-size:13px}table.mx th{font-weight:600;white-space:nowrap}table.mx tbody th{background:var(--th)}
+table.mx td{text-align:center;font-weight:800;min-width:56px;color:#1a1a1a;border-left:1px solid var(--line)}table.mx td.mx-self{background:repeating-linear-gradient(45deg,var(--th) 0 4px,transparent 4px 8px)}
+.tag{display:inline-block;padding:2px 8px;border-radius:999px;font-size:12.5px;font-weight:700;white-space:nowrap;color:#1a1a1a}
+.tag.good{background:#bfe6cf}.tag.warn{background:#ffd98a}.tag.bad{background:#ff9c8f}.tag.info{background:#b9d3ff}
+.dview{margin-bottom:16px}.dedit .card{margin-bottom:12px}
+details.edit>summary{cursor:pointer;font-weight:700;min-height:28px;display:flex;align-items:center;gap:8px}details.edit>summary small{color:var(--muted);font-weight:400}
+details.edit[open]>summary{margin-bottom:8px}
+.logf{margin-bottom:16px;border-color:var(--hv);border-width:1.5px}
+.lrow{display:flex;flex-wrap:wrap;gap:14px;align-items:flex-end}
+.lrow>label{display:flex;flex-direction:column;gap:4px;font-size:13px;font-weight:600;color:var(--muted)}
+.lrow select,.lrow input[type=date],.lrow input[type=number]{font:inherit;font-size:16px;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:6px;min-height:44px;padding:4px 8px}
+.lrow input[type=number]{width:80px}
+.steps{display:flex;flex-wrap:wrap;gap:6px;align-items:center}
+.chip input{position:absolute;opacity:0;pointer-events:none}.chip span{display:inline-flex;align-items:center;min-height:44px;padding:0 12px;border:1.5px solid var(--line);border-radius:8px;color:var(--ink);font-weight:700;cursor:pointer}
+.chip input:checked+span{background:var(--ink);color:var(--bg);border-color:var(--ink)}.chip input:focus-visible+span{outline:3px solid var(--hv);outline-offset:2px}
+.prow.wide{grid-template-columns:150px minmax(0,1fr) 84px}
+.stackbar{display:flex;height:100%;border-radius:7px;overflow:hidden}.stackbar i{display:block;height:100%}
+@media(max-width:600px){.prow,.prow.wide{grid-template-columns:96px minmax(0,1fr) 70px}}
+@media(max-width:600px){table{font-size:13px}.stack thead{display:none}.stack tr{display:grid;padding-block:10px;border-bottom:1px solid var(--line)}.stack td{display:flow-root;border:0;padding:3px 10px;padding-inline-start:calc(8em + 10px);text-align:start}.stack td::before{content:attr(data-l);float:inline-start;width:7.5em;margin-inline-start:-8em;white-space:normal;font-weight:700;color:var(--muted);font-size:12px}.stack td:empty{display:none}.tblock span:last-child{margin-left:0}}
+/* App shell: section switch between Guidebook and Project dashboard */
+.appnav{display:flex;gap:4px;flex-wrap:wrap}
+.appnav a{display:inline-flex;align-items:center;min-height:40px;padding:0 14px;border-radius:8px;color:#dfe8ff;text-decoration:none;font-weight:700;font-size:15px}
+.appnav a:hover{background:#ffffff1a;color:#fff}
+.appnav a[aria-current=page]{background:#fff;color:var(--bp2)}
+.dashwrap{max-width:1400px;margin:0 auto;padding:24px max(4vw,16px) 64px}
+.dashwrap main,.dashwrap #dash{max-width:none}
+/* Search definitions */
+.defs{display:grid;grid-template-columns:repeat(auto-fill,minmax(min(100%,340px),1fr));gap:12px;margin:10px 0 24px}
+.def{border:1px solid var(--line);border-left:4px solid var(--hv);border-radius:8px;padding:14px 16px}
+.def h3{margin:0 0 2px;font-size:18px}.def .where{margin:0 0 8px;font-size:13px;color:var(--muted)}
+.def dl{margin:0;display:grid;grid-template-columns:minmax(0,9em) minmax(0,1fr);gap:4px 12px;font-size:14.5px}
+.def dt{font-weight:700;color:var(--muted);font-size:13px;padding-top:2px}.def dd{margin:0}
+@media(max-width:600px){.def dl{grid-template-columns:minmax(0,1fr)}.def dt{padding-top:6px}}
+/* Meetings and projects */
+.pbar{display:flex;flex-wrap:wrap;gap:8px;align-items:center;padding:10px 12px;margin-bottom:16px;border:1px solid var(--line);border-radius:10px;background:var(--th)}
+.psel{display:flex;align-items:center;gap:8px;font-size:13px;font-weight:700;color:var(--muted)}
+.psel select{font:inherit;font-size:16px;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:6px;min-height:42px;padding:4px 8px;max-width:min(320px,70vw)}
+.btn.primary{background:var(--ink);color:var(--bg);border-color:var(--ink)}.btn.primary:hover{opacity:.9;background:var(--ink)}
+.newp{margin-bottom:16px;border-color:var(--hv)}
+.newp input[name=name]{min-width:min(320px,80vw)}
+.lrow input[name=name],.lrow input[name=currency]{font:inherit;font-size:16px;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:6px;min-height:44px;padding:4px 8px}
+.upl{margin-bottom:16px}
+.drop{display:flex;flex-direction:column;align-items:center;justify-content:center;gap:4px;min-height:120px;border:2px dashed var(--line);border-radius:10px;cursor:pointer;text-align:center;padding:16px;margin:8px 0}
+.drop b{font-size:16px}.drop span{color:var(--muted);font-size:14px}.drop:hover,.drop.over{border-color:var(--hv);background:var(--th)}
+.drop:focus-within{outline:3px solid var(--hv);outline-offset:2px}
+.paste summary{cursor:pointer;font-weight:600;min-height:32px}.paste textarea{width:100%;font:inherit;font-size:15px;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:8px;margin:6px 0}
+.momst{font-weight:600;color:var(--ink)}
+.review{border-color:var(--hv);border-width:1.5px;margin-bottom:16px}
+table.rv{min-width:1100px}table.rv textarea{width:100%;min-width:260px;font:inherit;font-size:14px;color:var(--ink);background:var(--bg);border:1px solid var(--line);border-radius:6px;padding:4px 6px}
+table.rv tr.off td{opacity:.45}table.rv input[type=checkbox]{width:22px;height:22px;accent-color:var(--hv)}
+details.xt summary{cursor:pointer;margin-top:12px;font-weight:600}details.xt pre{max-height:320px;overflow:auto;white-space:pre-wrap;font-size:12.5px}
+td.acts{white-space:nowrap}td.acts .btn{margin:2px}
+.tag.act{background:#e3d7ff}
+.lg.tri{width:0;height:0;border-left:6px solid transparent;border-right:6px solid transparent;border-top:8px solid var(--c-ev);background:none;border-radius:0}
+table.rv select{min-width:132px}table.rv td:nth-child(3) select{min-width:76px}
+
+</style>
+<script>new MutationObserver(()=>{for(const c of document.querySelectorAll('.stack td:not([data-l])')){let i=0,p=c;while(p=p.previousElementSibling)i+=p.colSpan;c.dataset.l=c.closest('table').rows[0].cells[i]?.textContent||''}}).observe(document,{childList:true,subtree:true})</script>
+</head>
+<body>
+<header class="top">
+  <a class="brand" href="index.html"><svg width="30" height="30" viewBox="0 0 30 30" aria-hidden="true"><rect x="1" y="1" width="28" height="28" rx="5" fill="none" stroke="#fff" stroke-width="2"/><rect x="6" y="8" width="10" height="3" fill="#fff"/><rect x="10" y="14" width="10" height="3" fill="#ff6b1a"/><rect x="14" y="20" width="10" height="3" fill="#fff"/></svg>Construction Management</a>
+  <nav class="appnav" aria-label="Sections"><a href="index.html">Guidebook</a><a href="dashboard.html" aria-current="page">Project dashboard</a></nav>
+</header>
+<div class="dashwrap"><div id="dash"></div></div>
+<footer>Project data and uploaded files are stored in this browser only (local storage and IndexedDB). Export a project from Settings to back it up or move it to another computer.</footer>
+<script>
+// Meeting minutes (MOM) intake: read PDF / image files in the browser, extract decisions, actions,
+// critical items and variations, and store the original files in IndexedDB for later review.
+// Free, no API key: pdf.js (text PDFs) and Tesseract.js (OCR for scans and photos), loaded on demand.
+window.Mom = (() => {
+  const PDFJS = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.min.js';
+  const PDFJS_WORKER = 'https://cdnjs.cloudflare.com/ajax/libs/pdf.js/3.11.174/pdf.worker.min.js';
+  const TESS = 'https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js';
+  const MON = ['jan', 'feb', 'mar', 'apr', 'may', 'jun', 'jul', 'aug', 'sep', 'oct', 'nov', 'dec'];
+
+  const loaded = {};
+  function loadScript(src) {
+    if (!loaded[src]) loaded[src] = new Promise((ok, bad) => { const s = document.createElement('script'); s.src = src; s.onload = ok; s.onerror = () => bad(new Error('Could not load ' + src + '. Check the internet connection.')); document.head.appendChild(s); });
+    return loaded[src];
+  }
+
+  // ---------- file storage (IndexedDB) ----------
+  let dbp;
+  function db() {
+    if (!dbp) dbp = new Promise((ok, bad) => { const r = indexedDB.open('cmg-files', 1); r.onupgradeneeded = () => r.result.createObjectStore('files'); r.onsuccess = () => ok(r.result); r.onerror = () => bad(r.error); });
+    return dbp;
+  }
+  async function putFile(id, rec) { const d = await db(); return new Promise((ok, bad) => { const t = d.transaction('files', 'readwrite'); t.objectStore('files').put(rec, id); t.oncomplete = ok; t.onerror = () => bad(t.error); }); }
+  async function getFile(id) { const d = await db(); return new Promise((ok, bad) => { const r = d.transaction('files').objectStore('files').get(id); r.onsuccess = () => ok(r.result); r.onerror = () => bad(r.error); }); }
+  async function delFile(id) { const d = await db(); return new Promise(ok => { const t = d.transaction('files', 'readwrite'); t.objectStore('files').delete(id); t.oncomplete = ok; t.onerror = ok; }); }
+
+  // ---------- text extraction ----------
+  async function ocr(images, progress) {
+    await loadScript(TESS);
+    const w = await Tesseract.createWorker('eng', 1, { logger: m => { if (m.status === 'recognizing text') progress(`Reading text (OCR) ${Math.round(m.progress * 100)}%`); } });
+    let out = '';
+    for (let i = 0; i < images.length; i++) { progress(`Reading page ${i + 1} of ${images.length} (OCR)…`); const r = await w.recognize(images[i]); out += r.data.text + '\n'; }
+    await w.terminate();
+    return out;
+  }
+  async function pdfText(buf, progress) {
+    await loadScript(PDFJS);
+    pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS_WORKER;
+    const pdf = await pdfjsLib.getDocument({ data: buf }).promise;
+    let text = '';
+    for (let p = 1; p <= pdf.numPages; p++) {
+      progress(`Reading PDF page ${p} of ${pdf.numPages}…`);
+      const page = await pdf.getPage(p), tc = await page.getTextContent(), rows = new Map();
+      for (const it of tc.items) { const y = Math.round(it.transform[5] / 3); if (!rows.has(y)) rows.set(y, []); rows.get(y).push([it.transform[4], it.str]); }
+      text += [...rows.entries()].sort((a, b) => b[0] - a[0]).map(([, r]) => r.sort((a, b) => a[0] - b[0]).map(x => x[1]).join(' ').replace(/\s+/g, ' ').trim()).filter(Boolean).join('\n') + '\n';
+    }
+    if (text.replace(/\s/g, '').length > 40 * pdf.numPages) return text;
+    // Scanned PDF: render pages and OCR them.
+    const imgs = [];
+    for (let p = 1; p <= Math.min(pdf.numPages, 15); p++) {
+      progress(`Preparing scanned page ${p} for OCR…`);
+      const page = await pdf.getPage(p), vp = page.getViewport({ scale: 2 }), c = document.createElement('canvas');
+      c.width = vp.width; c.height = vp.height; await page.render({ canvasContext: c.getContext('2d'), viewport: vp }).promise; imgs.push(c);
+    }
+    return ocr(imgs, progress);
+  }
+  async function extractText(file, progress) {
+    const isPdf = file.type === 'application/pdf' || /\.pdf$/i.test(file.name);
+    if (isPdf) return pdfText(await file.arrayBuffer(), progress);
+    if (/^image\//.test(file.type) || /\.(jpe?g|png|webp|bmp|gif|tiff?)$/i.test(file.name)) return ocr([file], progress);
+    if (/^text\//.test(file.type) || /\.txt$/i.test(file.name)) return file.text();
+    throw new Error('Upload a PDF, a JPG/PNG image or a text file.');
+  }
+
+  // ---------- parsing ----------
+  const pad = n => String(n).padStart(2, '0');
+  function parseDate(s) {
+    s = String(s || ''); let m;
+    if ((m = s.match(/\b(\d{4})-(\d{1,2})-(\d{1,2})\b/))) return `${m[1]}-${pad(m[2])}-${pad(m[3])}`;
+    if ((m = s.match(/\b(\d{1,2})[\/.\-](\d{1,2})[\/.\-](\d{2,4})\b/))) { let y = +m[3]; if (y < 100) y += 2000; const d = +m[1], mo = +m[2]; if (mo >= 1 && mo <= 12 && d >= 1 && d <= 31) return `${y}-${pad(mo)}-${pad(d)}`; }
+    if ((m = s.match(/\b(\d{1,2})(?:st|nd|rd|th)?[\s\-]+(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?[\s,\-]+(\d{4})\b/i))) return `${m[3]}-${pad(MON.indexOf(m[2].toLowerCase().slice(0, 3)) + 1)}-${pad(m[1])}`;
+    if ((m = s.match(/\b(jan|feb|mar|apr|may|jun|jul|aug|sep|oct|nov|dec)[a-z]*\.?\s+(\d{1,2})(?:st|nd|rd|th)?,?\s+(\d{4})\b/i))) return `${m[3]}-${pad(MON.indexOf(m[1].toLowerCase().slice(0, 3)) + 1)}-${pad(m[2])}`;
+    return '';
+  }
+  const RX = {
+    variation: /\b(variation|change order|change request|VO\b|PCO\b|additional (work|works|scope|cost|item|items|quantity)|extra (work|works|cost|over|item)|omit(ted)?|omission|delet(e|ed|ion) of|upgrade[ds]?|substitut\w*|revised? (design|scope|layout|drawing)|scope change|change in scope|client request\w*|owner request\w*|employer request\w*)/i,
+    decision: /\b(agreed|decided|decision|approved|approval (was |is )?(given|granted)|confirmed|resolved|accepted|instructed)\b/i,
+    critical: /\b(critical|urgent\w*|immediate(ly)?|asap|delay(ed|s)?|stop(page| work)?|safety|accident|incident|on hold|suspend\w*|penalt\w*|liquidated|LDs?\b|non-?compliance|failure)\b/i,
+    action: /\b(action|to (submit|provide|issue|confirm|revert|send|prepare|arrange|review|update|coordinate|resolve|complete|share|finali[sz]e)|shall|responsible|due (date|by|on)|pending)\b/i,
+    approvedByClient: /\b(approved|instructed|agreed|confirmed|accepted)\b[^.]*\b(client|owner|employer)\b|\b(client|owner|employer)\b[^.]*\b(approved|instructed|agreed|confirmed|accepted)\b/i,
+    party: /\b(client|owner|employer|main contractor|contractor|consultant|engineer|pmc|project manager|architect|designer|mep (contractor|consultant)|subcontractor|supplier|authority)\b/i,
+  };
+  const SKIP = /^(attendees|present|absent|distribution|agenda|apologies|circulation|copy to|cc)\b/i;
+  const cap = s => s.replace(/\b\w/g, c => c.toUpperCase());
+
+  function money(t) {
+    const m = t.match(/(AED|USD|SAR|QAR|OMR|KWD|BHD|INR|EUR|GBP|Dhs?\.?|\$|€|£)\s?([\d,]+(?:\.\d+)?)\s*(k|m|mn|million|thousand)?\b/i) || t.match(/\b([\d,]+(?:\.\d+)?)\s*(AED|USD|SAR|QAR|OMR|INR|EUR|GBP|Dhs)\b/i);
+    if (!m) return 0;
+    const numStr = /^\d/.test(m[1]) ? m[1] : m[2], unit = /^\d/.test(m[1]) ? '' : (m[3] || '');
+    let v = parseFloat(numStr.replace(/,/g, '')); if (/^(k|thousand)$/i.test(unit)) v *= 1e3; if (/^(m|mn|million)$/i.test(unit)) v *= 1e6;
+    return isFinite(v) ? v : 0;
+  }
+  function wbsMatch(t, wbs) {
+    const norm = s => s.normalize('NFD').replace(/[̀-ͯ]/g, '').toLowerCase();
+    const T = norm(t), stop = new Set(['and', 'the', 'works', 'work', 'site', 'setup', 'set', 'services', 'fit', 'out']);
+    for (const w of wbs) {
+      if (w.code && new RegExp(`(^|[^\\d.])${String(w.code).replace('.', '\\.')}([^\\d]|$)`).test(t) && /wbs|item|package|element/i.test(t)) return w.code;
+      const keys = norm(w.name).split(/[^a-z]+/).filter(k => k.length >= 3 && !stop.has(k));
+      if (keys.some(k => new RegExp(`\\b${k}`).test(T))) return w.code;
+    }
+    return '';
+  }
+  function classify(t, wbs) {
+    const isVar = RX.variation.test(t), isDec = RX.decision.test(t), isCrit = RX.critical.test(t), isAct = RX.action.test(t);
+    const type = isVar ? 'Variation' : isDec ? 'Decision' : isCrit && !/\bto (submit|provide|issue|send|prepare)\b/i.test(t) ? 'Critical issue' : isAct ? 'Action' : isCrit ? 'Critical issue' : 'Note';
+    let owner = '', m;
+    if ((m = t.match(/(?:action(?:\s+by)?|resp(?:onsible|\.)?|owner|by)\s*[:\-–]\s*([A-Za-z][\w&\/.\- ]{1,40}?)(?=$|[,;.)]|\s{2}|\s+(?:by|before|due|on)\b)/i))) owner = m[1].trim();
+    else if ((m = t.match(RX.party))) owner = cap(m[1]);
+    const dueM = t.match(/\b(?:by|before|due(?:\s+date)?|on or before|target(?:\s+date)?|deadline)\s*[:\-]?\s*(.{4,30})/i);
+    const due = dueM ? parseDate(dueM[1]) : '';
+    const daysM = (isVar || /extension|EOT|time impact/i.test(t)) ? t.match(/\b(\d{1,3})\s*(?:calendar\s+|working\s+)?days?\b/i) : null;
+    return { include: type !== 'Note', type, critical: isCrit ? 'Yes' : 'No', text: t.length > 400 ? t.slice(0, 397) + '…' : t, owner, due, value: isVar ? money(t) : 0,
+      days: daysM ? +daysM[1] : 0, wbs: wbsMatch(t, wbs), pcoStatus: isVar && RX.approvedByClient.test(t) ? 'Approved' : 'Potential' };
+  }
+  function parse(text, fileName, wbs) {
+    const lines = String(text).replace(/\r/g, '').split('\n').map(l => l.replace(/\s+/g, ' ').trim()).filter(Boolean);
+    let date = '';
+    for (const l of lines.slice(0, 40)) if (/\b(date|held on|dated)\b/i.test(l) && (date = parseDate(l))) break;
+    if (!date) for (const l of lines) if ((date = parseDate(l))) break;
+    const refM = text.match(/\bMOM\s*(?:no\.?|number|#|ref\.?)\s*[:\-]?\s*([A-Z0-9][A-Z0-9\-\/_.]{0,20})/i) || text.match(/\b(?:minutes of meeting|meeting|mtg)\s*(?:no\.?|number|#|ref\.?)\s*[:\-]?\s*([A-Z0-9][A-Z0-9\-\/_.]{0,20})/i);
+    const head = lines.slice(0, 15);
+    const title = (head.find(l => /meeting\s*(no\.?|number|#)/i.test(l)) || head.find(l => /meeting|minutes|MOM/i.test(l) && !/^minutes of meeting$/i.test(l)) || head.find(l => /meeting|minutes|MOM/i.test(l)) || fileName).slice(0, 120);
+    // Items: numbered or bulleted lines, with continuation lines appended.
+    const START = /^(\(?\d{1,2}(?:\.\d{1,2}){0,2}[).:]?|\(?[a-z][).]|[-•*▪●○■])\s+(?=\S)/i;
+    const items = []; let curItem = null, skipping = false;
+    for (const l of lines) {
+      if (SKIP.test(l)) { skipping = true; curItem = null; continue; }
+      if (START.test(l)) { skipping = false; curItem = l.replace(START, ''); items.push(curItem); continue; }
+      if (curItem !== null && !skipping && !/^(page \d|minutes of meeting)/i.test(l)) { items[items.length - 1] += ' ' + l; curItem = items[items.length - 1]; }
+    }
+    let raw = items.filter(s => s.length > 12);
+    if (raw.length < 2) raw = lines.join(' ').split(/(?<=[.;])\s+(?=[A-Z0-9])/).map(s => s.trim()).filter(s => s.length > 25 && !SKIP.test(s));
+    return { date, ref: refM ? refM[1] : '', title, items: raw.slice(0, 200).map(t => classify(t, wbs)) };
+  }
+
+  // ---------- compact storage: small originals kept; large ones stored as compressed page images ----------
+  const KEEP_MAX = 300 * 1024, MAX_DIM = 1600, MAX_PAGES = 40;
+  function canvasBlob(c, q) {
+    return new Promise(ok => c.toBlob(b => {
+      if (b && b.type === 'image/webp') return ok(b);
+      c.toBlob(j => ok(j), 'image/jpeg', q); // browsers without WebP encoding
+    }, 'image/webp', q));
+  }
+  function fitCanvas(w, h, draw) {
+    const s = Math.min(1, MAX_DIM / Math.max(w, h)), c = document.createElement('canvas');
+    c.width = Math.max(1, Math.round(w * s)); c.height = Math.max(1, Math.round(h * s));
+    const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height); draw(g, c.width, c.height);
+    return c;
+  }
+  async function gzip(text) {
+    if (typeof CompressionStream === 'undefined') return { textBlob: new Blob([text], { type: 'text/plain' }), gz: false };
+    const s = new Blob([text]).stream().pipeThrough(new CompressionStream('gzip'));
+    return { textBlob: await new Response(s).blob(), gz: true };
+  }
+  async function gunzip(rec) {
+    if (!rec.textBlob) return rec.text || '';
+    if (!rec.gz) return rec.textBlob.text();
+    return new Response(rec.textBlob.stream().pipeThrough(new DecompressionStream('gzip'))).text();
+  }
+  async function compact(file, text, progress) {
+    const t = await gzip(text || '');
+    const rec = { name: file ? file.name : 'Pasted text', type: file ? file.type : 'text/plain', origSize: file ? file.size : (text || '').length, pages: [], original: null, ...t };
+    if (!file) { rec.storedSize = t.textBlob.size; return rec; }
+    const isPdf = file.type === 'application/pdf' || /\.pdf$/i.test(file.name);
+    if (file.size <= KEEP_MAX) rec.original = file;
+    else if (isPdf) {
+      await loadScript(PDFJS); pdfjsLib.GlobalWorkerOptions.workerSrc = PDFJS_WORKER;
+      const pdf = await pdfjsLib.getDocument({ data: await file.arrayBuffer() }).promise;
+      for (let p = 1; p <= Math.min(pdf.numPages, MAX_PAGES); p++) {
+        progress(`Compressing page ${p} of ${pdf.numPages} for storage…`);
+        const page = await pdf.getPage(p), v1 = page.getViewport({ scale: 1 }), scale = Math.min(2, MAX_DIM / Math.max(v1.width, v1.height));
+        const vp = page.getViewport({ scale }), c = document.createElement('canvas'); c.width = vp.width; c.height = vp.height;
+        const g = c.getContext('2d'); g.fillStyle = '#fff'; g.fillRect(0, 0, c.width, c.height);
+        await page.render({ canvasContext: g, viewport: vp }).promise;
+        rec.pages.push(await canvasBlob(c, 0.55));
+      }
+    } else if (/^image\//.test(file.type) || /\.(jpe?g|png|webp|bmp|gif)$/i.test(file.name)) {
+      progress('Compressing image for storage…');
+      const bmp = await createImageBitmap(file);
+      rec.pages.push(await canvasBlob(fitCanvas(bmp.width, bmp.height, (g, w, h) => g.drawImage(bmp, 0, 0, w, h)), 0.6));
+    } else rec.original = file;
+    rec.storedSize = (rec.original ? rec.original.size : 0) + rec.pages.reduce((s, b) => s + b.size, 0) + t.textBlob.size;
+    return rec;
+  }
+  // Opens the stored document in a new tab: the original if kept, otherwise its compressed pages.
+  async function openStored(id) {
+    const rec = await getFile(id);
+    if (!rec) throw new Error('The stored file is not in this browser.');
+    let url;
+    if (rec.original || rec.blob) url = URL.createObjectURL(rec.original || rec.blob);
+    else if (rec.pages && rec.pages.length) {
+      const imgs = rec.pages.map(b => URL.createObjectURL(b));
+      const esc = s => String(s).replace(/[&<>"]/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;' }[c]));
+      const html = `<!DOCTYPE html><meta charset="utf-8"><title>${esc(rec.name)}</title><body style="margin:0;background:#555;font:14px sans-serif"><p style="color:#fff;padding:8px 16px;margin:0">${esc(rec.name)} · compressed copy, ${rec.pages.length} page(s)</p>${imgs.map(u => `<img src="${u}" style="display:block;max-width:100%;margin:0 auto 12px;background:#fff">`).join('')}</body>`;
+      url = URL.createObjectURL(new Blob([html], { type: 'text/html' }));
+    } else url = URL.createObjectURL(new Blob([await gunzip(rec)], { type: 'text/plain' }));
+    const a = document.createElement('a'); a.href = url; a.target = '_blank'; a.rel = 'noopener'; document.body.appendChild(a); a.click(); a.remove();
+  }
+  async function usage() { try { const e = await navigator.storage.estimate(); return e.usage || 0; } catch (err) { return 0; } }
+
+  return { extractText, parse, putFile, getFile, delFile, parseDate, compact, openStored, gunzip, usage };
+})();
+
+// Project dashboard: schedule and progress (WBS baseline + progress log), milestones, interfaces,
+// payments (IPCs and other project payments), risks and changes. Data is kept in this browser
+// (localStorage) and can be exported or imported as a JSON file.
+window.Dash = (() => {
+  const KEY = 'cmg-dashboard-v2';
+  const STEPS = [10, 25, 40, 50, 75, 85, 100];
+  const PAY_CATS = ['Advance payment', 'Design fees', 'PM / supervision fees', 'Authority fees', 'Utility charges', 'Testing and inspection', 'Owner direct purchase', 'Retention release', 'Insurance and bonds', 'Other'];
+
+  function sample() {
+    const ipcs = [];
+    const cert = [1500000, 2200000, 3000000, 3200000, 2600000, 2300000, 2800000, 2700000, 3000000];
+    cert.forEach((c, i) => {
+      const m = String(i + 2).padStart(2, '0'), ret = c * 0.05, adv = c * 0.10, net = c - ret - adv;
+      ipcs.push({ no: 'IPC-' + String(i + 1).padStart(2, '0'), period: '2026-' + m, applied: Math.round(c * 1.08), certified: c, retention: ret, advance: adv,
+        paid: i === 8 ? 0 : i === 7 ? Math.round(net * 0.5) : net, paidDate: i === 8 ? '' : `2026-${String(i + 3).padStart(2, '0')}-20` });
+    });
+    return {
+      project: { name: 'Sample project: 6-storey office building', currency: 'AED', contract: 48000000, retention: 5, dataDate: '2026-10-31' },
+      wbs: [
+        { code: '1.0', name: 'Preliminaries and site setup', budget: 3600000, start: '2026-01-05', finish: '2027-03-31' },
+        { code: '2.0', name: 'Substructure and piling', budget: 7200000, start: '2026-01-15', finish: '2026-05-15' },
+        { code: '3.0', name: 'Superstructure (frame)', budget: 11500000, start: '2026-04-01', finish: '2026-12-15' },
+        { code: '4.0', name: 'Envelope and façade', budget: 8400000, start: '2026-07-01', finish: '2027-02-28' },
+        { code: '5.0', name: 'MEP services', budget: 9800000, start: '2026-06-01', finish: '2027-04-30' },
+        { code: '6.0', name: 'Finishes and fit-out', budget: 5500000, start: '2026-10-01', finish: '2027-05-31' },
+        { code: '7.0', name: 'External works', budget: 2000000, start: '2027-03-01', finish: '2027-06-15' },
+      ],
+      progress: [
+        ['2026-02-28', '1.0', 10], ['2026-04-30', '1.0', 25], ['2026-06-30', '1.0', 40], ['2026-08-31', '1.0', 50], ['2026-10-31', '1.0', 75],
+        ['2026-02-28', '2.0', 10], ['2026-03-31', '2.0', 40], ['2026-04-30', '2.0', 75], ['2026-05-31', '2.0', 100],
+        ['2026-04-30', '3.0', 10], ['2026-06-30', '3.0', 25], ['2026-08-31', '3.0', 50], ['2026-10-31', '3.0', 75],
+        ['2026-08-31', '4.0', 10], ['2026-10-31', '4.0', 25],
+        ['2026-07-31', '5.0', 10], ['2026-09-30', '5.0', 25],
+        ['2026-10-31', '6.0', 10],
+      ].map(([date, code, pct]) => ({ date, code, pct })),
+      costs: [['2026-01', 500000], ['2026-02', 1600000], ['2026-03', 4100000], ['2026-04', 7600000], ['2026-05', 10600000], ['2026-06', 12900000],
+        ['2026-07', 15300000], ['2026-08', 18400000], ['2026-09', 21400000], ['2026-10', 24900000]].map(([month, ac]) => ({ month, ac })),
+      milestones: [
+        { id: 'M1', name: 'Site possession', baseline: '2026-01-05', forecast: '', actual: '2026-01-05' },
+        { id: 'M2', name: 'Piling complete', baseline: '2026-04-15', forecast: '', actual: '2026-05-10' },
+        { id: 'M3', name: 'Substructure complete', baseline: '2026-05-15', forecast: '', actual: '2026-05-31' },
+        { id: 'M4', name: 'Frame topped out', baseline: '2026-11-30', forecast: '2026-12-20', actual: '' },
+        { id: 'M5', name: 'Building watertight', baseline: '2027-02-28', forecast: '2027-03-31', actual: '' },
+        { id: 'M6', name: 'Permanent power energised', baseline: '2027-03-15', forecast: '2027-03-15', actual: '' },
+        { id: 'M7', name: 'Practical completion', baseline: '2027-06-15', forecast: '2027-07-10', actual: '' },
+      ],
+      interfaces: [
+        { id: 'IF-01', desc: 'Façade embeds cast into slab edges', from: '3.0', to: '4.0', type: 'Hard', requirement: 'Embed layout approved and cast in before each slab pour', needBy: '2026-09-15', status: 'Delivered' },
+        { id: 'IF-02', desc: 'MEP sleeves and openings in core walls', from: '3.0', to: '5.0', type: 'Hard', requirement: 'Coordinated BIM openings frozen two weeks before pour', needBy: '2026-08-31', status: 'Agreed' },
+        { id: 'IF-03', desc: 'Permanent power connection', from: 'Utility authority', to: '5.0', type: 'Extra-project', requirement: 'Load approval and energisation date confirmed', needBy: '2027-01-31', status: 'Open' },
+        { id: 'IF-04', desc: 'MEP levels for ceiling setting-out', from: '5.0', to: '6.0', type: 'Soft', requirement: 'As-installed MEP levels issued to fit-out contractor', needBy: '2026-12-15', status: 'Open' },
+        { id: 'IF-05', desc: 'Louvre openings in façade for MEP plant', from: '5.0', to: '4.0', type: 'Soft', requirement: 'Louvre sizes and locations agreed and on façade drawings', needBy: '2026-10-15', status: 'Open' },
+        { id: 'IF-06', desc: 'Tower crane removal before roof works', from: '1.0', to: '4.0', type: 'Resource', requirement: 'Crane dismantle date agreed with roofing sequence', needBy: '2027-01-15', status: 'Agreed' },
+      ],
+      risks: [
+        { id: 'R-01', title: 'Façade panel supplier delay', l: 4, i: 4, owner: 'Contractor', status: 'Open' },
+        { id: 'R-02', title: 'Utility connection date not confirmed', l: 3, i: 5, owner: 'Owner', status: 'Open' },
+        { id: 'R-03', title: 'MEP clashes at level 4 ceiling void', l: 3, i: 3, owner: 'Designer', status: 'Open' },
+        { id: 'R-04', title: 'Steel price escalation', l: 2, i: 4, owner: 'Contractor', status: 'Watch' },
+        { id: 'R-05', title: 'Summer heat restrictions reduce productivity', l: 4, i: 2, owner: 'Contractor', status: 'Open' },
+        { id: 'R-06', title: 'Fire authority approval of smoke control', l: 2, i: 5, owner: 'Owner', status: 'Open' },
+        { id: 'R-07', title: 'Piling obstruction', l: 1, i: 4, owner: 'Contractor', status: 'Closed' },
+      ],
+      pcos: [
+        { no: 'PCO-001', desc: 'Additional borehole and rock excavation', value: 420000, days: 21, status: 'Approved', co: 'CO-001' },
+        { no: 'PCO-002', desc: 'Upgraded lobby stone finish (owner request)', value: 310000, days: 0, status: 'Approved', co: 'CO-002' },
+        { no: 'PCO-003', desc: 'Deleted level 6 kitchenette', value: -85000, days: 0, status: 'Approved', co: 'CO-003' },
+        { no: 'PCO-004', desc: 'Extra EV chargers in basement', value: 260000, days: 10, status: 'Submitted', co: '', source: 'MOM-14 (14 Oct 26)' },
+        { no: 'PCO-005', desc: 'Façade bracket redesign after RFI-041', value: 540000, days: 28, status: 'Submitted', co: '' },
+        { no: 'PCO-006', desc: 'Additional access control doors', value: 95000, days: 0, status: 'Potential', co: '' },
+        { no: 'PCO-007', desc: 'Contractor claim for rain delay', value: 180000, days: 12, status: 'Rejected', co: '' },
+      ],
+      ipcs,
+      meetings: [{ id: 'sample-mom-14', ref: 'MOM-14', title: 'Progress meeting No. 14 (sample)', date: '2026-10-14', file: '', size: 0, uploaded: '2026-10-15', counts: { Variation: 1, Decision: 1, 'Critical issue': 1, Action: 1 } }],
+      log: [
+        { date: '2026-10-14', mom: 'MOM-14', type: 'Variation', critical: 'No', text: 'Client instructed additional EV chargers in the basement; contractor to submit quotation.', owner: 'Contractor', due: '2026-10-28', wbs: '5.0', status: 'Open', meetingId: 'sample-mom-14' },
+        { date: '2026-10-14', mom: 'MOM-14', type: 'Decision', critical: 'No', text: 'Agreed that façade louvre sizes follow MEP drawing revision C.', owner: 'Consultant', due: '', wbs: '4.0', status: 'Closed', meetingId: 'sample-mom-14' },
+        { date: '2026-10-14', mom: 'MOM-14', type: 'Critical issue', critical: 'Yes', text: 'Façade panel delivery delayed three weeks; critical to the watertight milestone.', owner: 'Contractor', due: '2026-10-21', wbs: '4.0', status: 'Open', meetingId: 'sample-mom-14' },
+        { date: '2026-10-14', mom: 'MOM-14', type: 'Action', critical: 'No', text: 'Contractor to submit a revised three-week look-ahead programme.', owner: 'Contractor', due: '2026-10-21', wbs: '', status: 'Open', meetingId: 'sample-mom-14' },
+      ],
+      payments: [
+        { date: '2026-01-10', category: 'Advance payment', payee: 'Main contractor', ref: 'APG-01', amount: 4800000, status: 'Paid' },
+        { date: '2026-01-20', category: 'Design fees', payee: 'Architect', ref: 'INV-A-07', amount: 450000, status: 'Paid' },
+        { date: '2026-02-15', category: 'Authority fees', payee: 'Building permit authority', ref: 'BP-2231', amount: 180000, status: 'Paid' },
+        { date: '2026-03-31', category: 'PM / supervision fees', payee: 'Project management consultant', ref: 'PMC-Q1', amount: 360000, status: 'Paid' },
+        { date: '2026-04-20', category: 'Design fees', payee: 'Architect', ref: 'INV-A-08', amount: 300000, status: 'Paid' },
+        { date: '2026-05-05', category: 'Utility charges', payee: 'Utility authority', ref: 'Connection deposit', amount: 600000, status: 'Paid' },
+        { date: '2026-06-30', category: 'PM / supervision fees', payee: 'Project management consultant', ref: 'PMC-Q2', amount: 360000, status: 'Paid' },
+        { date: '2026-07-20', category: 'Design fees', payee: 'Architect', ref: 'INV-A-09', amount: 250000, status: 'Paid' },
+        { date: '2026-09-12', category: 'Testing and inspection', payee: 'Third-party laboratory', ref: 'LAB-114', amount: 85000, status: 'Paid' },
+        { date: '2026-09-30', category: 'PM / supervision fees', payee: 'Project management consultant', ref: 'PMC-Q3', amount: 360000, status: 'Paid' },
+        { date: '2026-10-20', category: 'Design fees', payee: 'Architect', ref: 'INV-A-10', amount: 250000, status: 'Pending' },
+        { date: '2026-10-28', category: 'Owner direct purchase', payee: 'FF&E supplier', ref: 'PO-031 deposit', amount: 400000, status: 'Pending' },
+      ],
+    };
+  }
+
+  // Editable tables: [key, label, type, options]; types: t text, n number, d date, m month, s select, w WBS code or party
+  const SCHEMA = {
+    wbs: { title: 'WBS baseline', note: 'Budget is the weight of each element. Planned progress runs evenly from start to finish.', cols: [['code', 'WBS code'], ['name', 'Element'], ['budget', 'Budget', 'n'], ['start', 'Baseline start', 'd'], ['finish', 'Baseline finish', 'd']] },
+    progress: { title: 'Progress log', note: 'Each entry is the % complete of a WBS element on a date. The latest entry on or before the data date counts.', cols: [['date', 'Date', 'd'], ['code', 'WBS code', 'w'], ['pct', '% complete', 'n']] },
+    milestones: { title: 'Milestones', cols: [['id', 'ID'], ['name', 'Milestone'], ['baseline', 'Baseline date', 'd'], ['forecast', 'Forecast date', 'd'], ['actual', 'Actual date', 'd']] },
+    costs: { title: 'Actual cost (cumulative, by month)', note: 'Optional. Needed for CPI and the forecast at completion.', cols: [['month', 'Month', 'm'], ['ac', 'Cumulative actual cost', 'n']] },
+    interfaces: { title: 'Interface register', note: 'Provider and receiver: a WBS code, or an outside party such as a utility.', cols: [['id', 'ID'], ['desc', 'Interface point'], ['from', 'Provider', 'w'], ['to', 'Receiver', 'w'], ['type', 'Type', 's', ['Hard', 'Soft', 'Resource', 'Extra-project']], ['requirement', 'Requirement / dependency'], ['needBy', 'Need-by date', 'd'], ['status', 'Status', 's', ['Open', 'Agreed', 'Delivered', 'Closed']]] },
+    ipcs: { title: 'Interim payment certificates (IPCs)', note: 'Enter the period values as certified. Net payable = certified − retention − advance recovery.', cols: [['no', 'IPC No.'], ['period', 'Period', 'm'], ['applied', 'Applied', 'n'], ['certified', 'Certified (gross)', 'n'], ['retention', 'Retention', 'n'], ['advance', 'Advance recovery', 'n'], ['paid', 'Paid', 'n'], ['paidDate', 'Paid date', 'd']] },
+    payments: { title: 'Other project payments', note: 'Everything paid outside the IPCs: advance, fees, authority and utility charges, owner purchases.', cols: [['date', 'Date', 'd'], ['category', 'Category', 's', PAY_CATS], ['payee', 'Payee'], ['ref', 'Reference'], ['amount', 'Amount', 'n'], ['status', 'Status', 's', ['Paid', 'Pending']]] },
+    risks: { title: 'Risk register', cols: [['id', 'ID'], ['title', 'Risk'], ['l', 'Likelihood 1-5', 'n'], ['i', 'Impact 1-5', 'n'], ['owner', 'Owner'], ['status', 'Status', 's', ['Open', 'Watch', 'Closed']]] },
+    pcos: { title: 'PCOs and change orders', cols: [['no', 'PCO No.'], ['desc', 'Description'], ['value', 'Value', 'n'], ['days', 'Time (days)', 'n'], ['status', 'Status', 's', ['Potential', 'Submitted', 'Approved', 'Rejected']], ['co', 'CO No.'], ['source', 'Source']] },
+    log: { title: 'Project log', note: 'Decisions, actions, critical issues and variations. Added automatically from uploaded minutes of meeting, or entered by hand. Items linked to a WBS element appear on the programme chart.', cols: [['date', 'Date', 'd'], ['mom', 'Source (meeting)'], ['type', 'Type', 's', ['Decision', 'Action', 'Variation', 'Critical issue', 'Note']], ['critical', 'Critical', 's', ['No', 'Yes']], ['text', 'Item'], ['owner', 'Owner'], ['due', 'Due', 'd'], ['wbs', 'WBS', 'w'], ['status', 'Status', 's', ['Open', 'Closed']]] },
+  };
+  const TABS = [['overview', 'Overview'], ['schedule', 'Schedule & progress'], ['meetings', 'Meetings & decisions'], ['payments', 'Payments'], ['interfaces', 'Interfaces'], ['risks', 'Risks & changes'], ['settings', 'Settings']];
+  const TAB_TABLES = { schedule: ['wbs', 'progress', 'milestones', 'costs'], meetings: ['log'], payments: ['ipcs', 'payments'], interfaces: ['interfaces'], risks: ['risks', 'pcos'], overview: [], settings: [] };
+
+  const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
+  const num = v => { const n = parseFloat(String(v ?? '').replace(/,/g, '')); return isFinite(n) ? n : 0; };
+  const sum = (a, f) => a.reduce((s, r) => s + num(f(r)), 0);
+  const dt = s => { const t = Date.parse(String(s || '') + (String(s || '').length === 7 ? '-01' : '')); return isFinite(t) ? t : NaN; };
+  const DAY = 864e5;
+  const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
+  const fmtD = s => { const t = dt(s); if (!isFinite(t)) return '—'; const d = new Date(t); return `${d.getUTCDate()} ${MON[d.getUTCMonth()]} ${String(d.getUTCFullYear()).slice(2)}`; };
+  const monthEnd = (y, m) => Date.UTC(y, m + 1, 0);
+  let D, root, tab = 'overview', ros = [], openEd = new Set();
+  let pending = null, momBusy = '', busy = false, queue = [], showNew = false, delArm = '', momDelArm = '';
+
+  // ---------- projects (several, each saved in this browser) ----------
+  const IDX = 'cmg-projects-v1', PKEY = id => 'cmg-project-' + id;
+  let projId = '', savedAt = '';
+  const newId = () => 'p' + Date.now().toString(36) + Math.random().toString(36).slice(2, 6);
+  function normalize(d) { const base = sample(); d = d || {}; for (const k of [...Object.keys(SCHEMA), 'meetings']) if (!Array.isArray(d[k])) d[k] = []; d.project = Object.assign(base.project, d.project || {}); return d; }
+  function index() { try { const s = JSON.parse(localStorage.getItem(IDX) || 'null'); if (s && Array.isArray(s.list)) return s; } catch (e) {} return { current: '', list: [] }; }
+  function writeIndex(ix) { try { localStorage.setItem(IDX, JSON.stringify(ix)); } catch (e) {} }
+  function load() {
+    let ix = index();
+    if (!ix.list.length) {
+      let d = null; try { const old = localStorage.getItem(KEY); if (old) d = JSON.parse(old); } catch (e) {}
+      const id = newId(); d = normalize(d || sample());
+      ix = { current: id, list: [{ id, name: d.project.name, updated: new Date().toISOString() }] };
+      try { localStorage.setItem(PKEY(id), JSON.stringify(d)); } catch (e) {}
+      writeIndex(ix);
+    }
+    projId = ix.list.some(p => p.id === ix.current) ? ix.current : ix.list[0].id;
+    try { const s = localStorage.getItem(PKEY(projId)); if (s) return normalize(JSON.parse(s)); } catch (e) {}
+    return normalize(sample());
+  }
+  function save() {
+    try {
+      localStorage.setItem(PKEY(projId), JSON.stringify(D));
+      const ix = index(), p = ix.list.find(x => x.id === projId), now = new Date();
+      if (p) { p.name = D.project.name || 'Untitled project'; p.updated = now.toISOString(); } else ix.list.push({ id: projId, name: D.project.name || 'Untitled project', updated: now.toISOString() });
+      ix.current = projId; writeIndex(ix); savedAt = 'Saved ' + now.toTimeString().slice(0, 5); return true;
+    } catch (e) { savedAt = 'Not saved: browser storage is full or blocked. Export your data.'; return false; }
+  }
+  function switchTo(id) { const ix = index(); ix.current = id; writeIndex(ix); D = load(); pending = null; queue = []; savedAt = ''; render(); }
+  const blank = (name, currency) => normalize({ project: { name: name || 'New project', currency: currency || 'AED', contract: 0, retention: 5, dataDate: new Date().toISOString().slice(0, 10) }, wbs: [], progress: [], costs: [], milestones: [], interfaces: [], risks: [], pcos: [], ipcs: [], payments: [], log: [], meetings: [] });
+  const cur = () => D.project.currency || '';
+  function money(n, full) {
+    const a = Math.abs(n), sg = n < 0 ? '−' : '';
+    if (full) return sg + a.toLocaleString('en-US', { maximumFractionDigits: 0 });
+    if (a >= 1e6) return sg + (a / 1e6).toFixed(2) + ' m';
+    if (a >= 1e3) return sg + (a / 1e3).toFixed(0) + ' k';
+    return sg + a.toFixed(0);
+  }
+  const pct = n => (isFinite(n) ? n.toFixed(1) : '0.0') + '%';
+  const wbsLabel = code => { const w = D.wbs.find(x => String(x.code) === String(code)); return w ? `${w.code} ${w.name}` : String(code); };
+
+  // ---------- calculations ----------
+  const dd = () => dt(D.project.dataDate) || Date.now();
+  function planPct(w, t) { const s = dt(w.start), f = dt(w.finish); if (!isFinite(s) || !isFinite(f) || f <= s) return 0; return t <= s ? 0 : t >= f ? 100 : (t - s) / (f - s) * 100; }
+  function actPct(code, t) {
+    let best = null;
+    for (const p of D.progress) if (String(p.code) === String(code) && dt(p.date) <= t && (!best || dt(p.date) >= dt(best.date))) best = p;
+    return best ? Math.max(0, Math.min(100, num(best.pct))) : 0;
+  }
+  const PV = t => sum(D.wbs, w => num(w.budget) * planPct(w, t) / 100);
+  const EV = t => sum(D.wbs, w => num(w.budget) * actPct(w.code, t) / 100);
+  function ACat(t) { let best = null; for (const c of D.costs) { const ct = monthEnd(new Date(dt(c.month)).getUTCFullYear(), new Date(dt(c.month)).getUTCMonth()); if (isFinite(ct) && ct <= t + DAY && (!best || ct > best.t)) best = { t: ct, v: num(c.ac) }; } return best ? best.v : 0; }
+  function msStatus(m) {
+    const b = dt(m.baseline), a = dt(m.actual), f = dt(m.forecast) || b;
+    if (isFinite(a)) return a <= b ? ['Achieved', 'good'] : ['Achieved late', 'warn'];
+    if (f > b) return ['Forecast late', 'bad'];
+    if (b < dd()) return ['Overdue', 'bad'];
+    return ['On track', 'good'];
+  }
+  const msVar = m => { const b = dt(m.baseline), e = dt(m.actual) || dt(m.forecast) || b; return isFinite(b) && isFinite(e) ? Math.round((e - b) / DAY) : 0; };
+  const ifOverdue = x => dt(x.needBy) < dd() && !['Delivered', 'Closed'].includes(x.status);
+  const ipcNet = r => num(r.certified) - num(r.retention) - num(r.advance);
+
+  function metrics() {
+    const t = dd(), bac = sum(D.wbs, w => w.budget), pv = PV(t), ev = EV(t), ac = ACat(t);
+    const cpi = ac ? ev / ac : 0, spi = pv ? ev / pv : 0, eac = cpi ? bac / cpi : 0;
+    const appr = D.pcos.filter(p => p.status === 'Approved'), pend = D.pcos.filter(p => ['Potential', 'Submitted'].includes(p.status));
+    const coVal = sum(appr, p => p.value), coDays = sum(appr, p => p.days), contract = num(D.project.contract);
+    const ms = D.milestones.map(m => msStatus(m)[0]);
+    const cert = sum(D.ipcs, r => r.certified), net = sum(D.ipcs, ipcNet), ipcPaid = sum(D.ipcs, r => r.paid);
+    const retHeld = sum(D.ipcs, r => r.retention) - sum(D.payments.filter(p => p.category === 'Retention release' && p.status === 'Paid'), p => p.amount);
+    const advPaid = sum(D.payments.filter(p => p.category === 'Advance payment' && p.status === 'Paid'), p => p.amount), advRec = sum(D.ipcs, r => r.advance);
+    const otherPaid = sum(D.payments.filter(p => p.status === 'Paid'), p => p.amount), otherPend = sum(D.payments.filter(p => p.status === 'Pending'), p => p.amount);
+    const open = D.risks.filter(r => r.status !== 'Closed');
+    return { bac, pv, ev, ac, cpi, spi, eac, planned: bac ? pv / bac * 100 : 0, actual: bac ? ev / bac * 100 : 0,
+      appr, pend, coVal, coDays, pendVal: sum(pend, p => p.value), contract, revised: contract + coVal,
+      msDone: ms.filter(s => s.startsWith('Achieved')).length, msLate: ms.filter(s => /late|Overdue/.test(s)).length,
+      cert, net, ipcPaid, ipcOut: net - ipcPaid, retHeld, advPaid, advRec, otherPaid, otherPend, spend: ipcPaid + otherPaid,
+      ifOpen: D.interfaces.filter(x => !['Delivered', 'Closed'].includes(x.status)).length, ifLate: D.interfaces.filter(ifOverdue).length,
+      open, high: open.filter(r => num(r.l) * num(r.i) >= 15).length };
+  }
+
+  // ---------- small builders ----------
+  const kpi = (label, value, sub, tone) => `<div class="kpi${tone ? ' ' + tone : ''}"><span>${label}</span><b>${value}</b><small>${sub}</small></div>`;
+  const card = (title, cap, body, span) => `<section class="card${span ? ' span2' : ''}"><h3>${title}</h3>${cap ? `<p class="cap">${cap}</p>` : ''}${body}</section>`;
+  const legend = items => `<div class="legend">${items.map(([c, t]) => `<span><i class="lg ${c}"></i>${t}</span>`).join('')}</div>`;
+  const fig = (name, cls) => `<div class="fig dfig${cls ? ' ' + cls : ''}" data-chart="${name}"></div>`;
+  const tbl = (head, rows, right = []) => rows.length ? `<div class="tw"><table class="mini"><thead><tr>${head.map((h, i) => `<th${right.includes(i) ? ' class="r"' : ''}>${h}</th>`).join('')}</tr></thead><tbody>${rows.join('')}</tbody></table></div>` : '<p class="cap">Nothing to show yet.</p>';
+  const idxTone = v => !v ? '' : v >= 1 ? 'good' : v >= 0.95 ? 'warn' : 'bad';
+
+  // ---------- views ----------
+  function vOverview() {
+    const m = metrics(), c = esc(cur());
+    return `<div class="kpis">
+      ${kpi('Progress', pct(m.actual), `planned ${pct(m.planned)}`, m.actual + 0.05 >= m.planned ? 'good' : 'bad')}
+      ${kpi('SPI', m.spi ? m.spi.toFixed(2) : '—', m.spi >= 1 ? 'ahead of plan' : 'behind plan', idxTone(m.spi))}
+      ${kpi('CPI', m.cpi ? m.cpi.toFixed(2) : '—', m.ac ? (m.cpi >= 1 ? 'under budget' : 'over budget') : 'add actual cost', idxTone(m.cpi))}
+      ${kpi(`Forecast EAC (${c})`, m.eac ? money(m.eac) : '—', `budget ${money(m.bac)}`, m.eac ? (m.eac <= m.bac ? 'good' : 'bad') : '')}
+      ${kpi('Milestones', `${m.msDone} / ${D.milestones.length}`, `${m.msLate} late or at risk`, m.msLate ? 'bad' : 'good')}
+      ${kpi(`Revised contract (${c})`, money(m.revised), `${m.appr.length} COs ${m.coVal >= 0 ? '+' : ''}${money(m.coVal)} · ${m.coDays} days`)}
+      ${kpi(`Pending PCOs (${c})`, money(m.pendVal), `${m.pend.length} potential or submitted`, m.pend.length ? 'warn' : '')}
+      ${kpi(`IPC outstanding (${c})`, money(m.ipcOut), `paid ${money(m.ipcPaid)} of ${money(m.net)} net`, m.ipcOut > 0 ? 'warn' : 'good')}
+      ${kpi('Interfaces overdue', String(m.ifLate), `${m.ifOpen} open in total`, m.ifLate ? 'bad' : 'good')}
+      ${kpi('Open risks', String(m.open.length), `${m.high} high (score 15+)`, m.high ? 'bad' : 'good')}
+    </div><div class="dgrid">
+      ${card('Programme: WBS progress and milestones', 'Light bar = baseline; dark fill = % complete logged; line = data date; diamonds = milestones (green achieved, red late or at risk).', ganttLegend() + fig('gantt', 'auto'), 1)}
+      ${card('S-curve: planned, earned and actual', 'Planned value follows the WBS baseline; earned value comes from the progress log; actual cost from the cost log.', legend([['pv', 'Planned value'], ['ev', 'Earned value'], ['ac', 'Actual cost']]) + fig('scurve'), 1)}
+      ${card('Upcoming milestones', '', upcoming())}
+      ${card('Risk heat map', 'Open risks by likelihood × impact.', heat())}
+      ${card('PCO pipeline', `Value by status (${c}).`, pipeline())}
+      ${card('Payments summary', `${c}`, paySummary(m))}
+      ${card('Overdue interfaces', '', ifList(D.interfaces.filter(ifOverdue)), 1)}
+      ${card('Latest decisions, critical items and variations from meetings', 'From uploaded minutes of meeting (Meetings & decisions tab).', logTable(D.log.filter(l => l.type !== 'Note').sort(byDateDesc).slice(0, 6)), 1)}
+    </div>`;
+  }
+
+  function ganttLegend() { return legend([['bl', 'Baseline'], ['ok', 'Complete, on plan'], ['late', 'Complete, behind plan'], ['dd', 'Data date'], ['tri', 'Meeting item (blue decision, orange variation, red critical)']]); }
+
+  function vSchedule() {
+    const m = metrics();
+    return `<div class="kpis">
+      ${kpi('Actual progress', pct(m.actual), `planned ${pct(m.planned)} at ${fmtD(D.project.dataDate)}`, m.actual + 0.05 >= m.planned ? 'good' : 'bad')}
+      ${kpi('Earned value', money(m.ev), `planned value ${money(m.pv)}`)}
+      ${kpi('SPI', m.spi ? m.spi.toFixed(2) : '—', m.spi >= 1 ? 'ahead of plan' : 'behind plan', idxTone(m.spi))}
+      ${kpi('CPI', m.cpi ? m.cpi.toFixed(2) : '—', m.ac ? `actual cost ${money(m.ac)}` : 'add actual cost', idxTone(m.cpi))}
+      ${kpi('Milestones achieved', `${m.msDone} / ${D.milestones.length}`, `${m.msLate} late or at risk`, m.msLate ? 'bad' : 'good')}
+    </div>${logForm()}<div class="dgrid">
+      ${card('Programme: WBS progress and milestones', 'Updates as soon as you change the baseline or log progress.', ganttLegend() + fig('gantt', 'auto'), 1)}
+      ${card('S-curve', 'Cumulative planned value from the baseline, earned value from the progress log, and actual cost.', legend([['pv', 'Planned value'], ['ev', 'Earned value'], ['ac', 'Actual cost']]) + fig('scurve'), 1)}
+      ${card('CPI and SPI trend', 'Monthly indices; above 1.00 is good, below 0.95 needs action.', legend([['ev', 'CPI (EV ÷ AC)'], ['ac', 'SPI (EV ÷ PV)'], ['pv', 'Target 1.00']]) + fig('idx', 'sm'), 1)}
+      ${card('Progress by WBS', `At the data date. Bar = actual %; marker = planned %.`, wbsBars(), 1)}
+      ${card('Milestones', 'Variance = actual or forecast date minus baseline (days).', msTable(), 1)}
+    </div>`;
+  }
+
+  function logForm() {
+    const opts = D.wbs.map(w => `<option value="${esc(w.code)}">${esc(w.code)} ${esc(w.name)}</option>`).join('');
+    return `<form class="card logf" data-form="log"><h3>Log progress</h3>
+      <div class="lrow"><label>WBS element<select name="code" required>${opts || '<option value="">Add the WBS baseline first</option>'}</select></label>
+      <label>Date<input type="date" name="date" value="${esc(D.project.dataDate)}" required></label>
+      <label>% complete<span class="steps">${STEPS.map(s => `<label class="chip"><input type="radio" name="pct" value="${s}"${s === 50 ? ' checked' : ''}><span>${s}%</span></label>`).join('')}
+        <label class="chip other"><input type="radio" name="pct" value="other"><span>Other</span></label><input type="number" name="custom" min="0" max="100" step="1" placeholder="%" aria-label="Other percentage"></span></label>
+      <button class="btn sm" type="submit">Log progress</button></div><p class="cap" data-msg="log" role="status"></p></form>`;
+  }
+
+  function vPayments() {
+    const m = metrics(), c = esc(cur());
+    const ipcRows = D.ipcs.map(r => { const n = ipcNet(r), o = n - num(r.paid), st = num(r.paid) >= n - 1 ? ['Paid', 'good'] : num(r.paid) > 0 ? ['Part paid', 'warn'] : ['Unpaid', 'bad'];
+      return `<tr><td>${esc(r.no)}</td><td>${esc(r.period)}</td><td class="r">${money(num(r.certified), true)}</td><td class="r">${money(num(r.retention), true)}</td><td class="r">${money(num(r.advance), true)}</td><td class="r">${money(n, true)}</td><td class="r">${money(num(r.paid), true)}</td><td class="r">${money(o, true)}</td><td><span class="tag ${st[1]}">${st[0]}</span></td></tr>`; });
+    ipcRows.push(`<tr class="tot"><td>Total</td><td></td><td class="r">${money(m.cert, true)}</td><td class="r">${money(sum(D.ipcs, r => r.retention), true)}</td><td class="r">${money(m.advRec, true)}</td><td class="r">${money(m.net, true)}</td><td class="r">${money(m.ipcPaid, true)}</td><td class="r">${money(m.ipcOut, true)}</td><td></td></tr>`);
+    const payRows = [...D.payments].sort((a, b) => dt(b.date) - dt(a.date)).map(p => `<tr><td>${fmtD(p.date)}</td><td>${esc(p.category)}</td><td>${esc(p.payee)}</td><td>${esc(p.ref)}</td><td class="r">${money(num(p.amount), true)}</td><td><span class="tag ${p.status === 'Paid' ? 'good' : 'warn'}">${esc(p.status)}</span></td></tr>`);
+    return `<div class="kpis">
+      ${kpi(`IPCs certified (${c})`, money(m.cert), `${D.ipcs.length} certificates, gross`)}
+      ${kpi(`IPCs paid (${c})`, money(m.ipcPaid), `of ${money(m.net)} net payable`)}
+      ${kpi(`IPC outstanding (${c})`, money(m.ipcOut), 'certified but not yet paid', m.ipcOut > 0 ? 'warn' : 'good')}
+      ${kpi(`Retention held (${c})`, money(m.retHeld), `${num(D.project.retention)}% retention`)}
+      ${kpi(`Advance balance (${c})`, money(m.advPaid - m.advRec), `paid ${money(m.advPaid)} · recovered ${money(m.advRec)}`)}
+      ${kpi(`Other payments (${c})`, money(m.otherPaid), `${money(m.otherPend)} pending`, m.otherPend ? 'warn' : '')}
+      ${kpi(`Total project spend (${c})`, money(m.spend), 'IPCs paid + other payments paid')}
+    </div><div class="dgrid">
+      ${card('IPCs by period', `Certified (gross), net payable and paid (${c}).`, legend([['ap', 'Certified'], ['ce', 'Net payable'], ['pa', 'Paid']]) + fig('ipc'), 1)}
+      ${card('Cumulative cash flow', `IPC net payable vs paid, plus other project payments (${c}).`, legend([['ev', 'IPC net payable'], ['ok2', 'IPC paid'], ['ac', 'All project payments paid']]) + fig('cash'), 1)}
+      ${card('IPC register', '', tbl(['IPC', 'Period', 'Certified', 'Retention', 'Advance rec.', 'Net', 'Paid', 'Outstanding', 'Status'], ipcRows, [2, 3, 4, 5, 6, 7]), 1)}
+      ${card('Other payments by category', `Paid and pending (${c}).`, catBars())}
+      ${card('Other project payments', '', tbl(['Date', 'Category', 'Payee', 'Ref.', 'Amount', 'Status'], payRows, [4]), 1)}
+    </div>`;
+  }
+
+  function vInterfaces() {
+    const all = D.interfaces, late = all.filter(ifOverdue);
+    const by = s => all.filter(x => x.status === s).length;
+    const rows = [...all].sort((a, b) => dt(a.needBy) - dt(b.needBy)).map(x => { const o = ifOverdue(x), days = Math.round((dd() - dt(x.needBy)) / DAY);
+      return `<tr><td>${esc(x.id)}</td><td>${esc(x.desc)}</td><td>${esc(wbsLabel(x.from))}</td><td>${esc(wbsLabel(x.to))}</td><td>${esc(x.type)}</td><td>${esc(x.requirement)}</td><td>${fmtD(x.needBy)}</td><td><span class="tag ${o ? 'bad' : ['Delivered', 'Closed'].includes(x.status) ? 'good' : x.status === 'Agreed' ? 'info' : 'warn'}">${o ? `Overdue ${days} d` : esc(x.status)}</span></td></tr>`; });
+    return `<div class="kpis">
+      ${kpi('Interface points', String(all.length), `${by('Open')} open · ${by('Agreed')} agreed`)}
+      ${kpi('Overdue', String(late.length), 'need-by date passed, not delivered', late.length ? 'bad' : 'good')}
+      ${kpi('Delivered or closed', String(by('Delivered') + by('Closed')), `${all.length ? Math.round((by('Delivered') + by('Closed')) / all.length * 100) : 0}% of all points`, 'good')}
+      ${kpi('Due in next 30 days', String(all.filter(x => !['Delivered', 'Closed'].includes(x.status) && dt(x.needBy) >= dd() && dt(x.needBy) <= dd() + 30 * DAY).length), 'open points coming due', '')}
+    </div><div class="dgrid">
+      ${card('Interface matrix', 'Rows = provider, columns = receiver. Each cell counts the interface points between them, coloured by the worst status.', matrix() + legend([['mx-late', 'Overdue'], ['mx-open', 'Open'], ['mx-agreed', 'Agreed'], ['mx-done', 'Delivered or closed']]), 1)}
+      ${card('Overdue interfaces', 'Chase through the interface coordinator; escalate if the recovery date is missed.', ifList(late), 1)}
+      ${card('Interface register', 'Sorted by need-by date.', tbl(['ID', 'Interface point', 'Provider', 'Receiver', 'Type', 'Requirement / dependency', 'Need-by', 'Status'], rows), 1)}
+    </div>`;
+  }
+
+  function vRisks() {
+    const m = metrics(), c = esc(cur());
+    const top = [...m.open].sort((a, b) => num(b.l) * num(b.i) - num(a.l) * num(a.i)).slice(0, 8)
+      .map(r => { const s = num(r.l) * num(r.i); return `<tr><td>${esc(r.id)}</td><td>${esc(r.title)}</td><td class="r"><span class="sc ${s >= 15 ? 'hz3' : s >= 8 ? 'hz2' : 'hz1'}">${s}</span></td><td>${esc(r.owner)}</td><td>${esc(r.status)}</td></tr>`; });
+    const co = m.appr.map(p => `<tr><td>${esc(p.co || p.no)}</td><td>${esc(p.desc)}</td><td class="r">${money(num(p.value), true)}</td><td class="r">${num(p.days)}</td></tr>`);
+    if (co.length) co.push(`<tr class="tot"><td></td><td>Total</td><td class="r">${money(m.coVal, true)}</td><td class="r">${m.coDays}</td></tr>`);
+    return `<div class="kpis">
+      ${kpi('Open risks', String(m.open.length), `${m.high} high (score 15+)`, m.high ? 'bad' : 'good')}
+      ${kpi(`Approved COs (${c})`, money(m.coVal), `${m.appr.length} change orders · ${m.coDays} days`)}
+      ${kpi(`Revised contract (${c})`, money(m.revised), `original ${money(m.contract)}`)}
+      ${kpi(`Pending PCOs (${c})`, money(m.pendVal), `${m.pend.length} potential or submitted`, m.pend.length ? 'warn' : '')}
+    </div><div class="dgrid">
+      ${card('Risk heat map', 'Open risks by likelihood × impact.', heat())}
+      ${card('PCO pipeline', `Value by status (${c}).`, pipeline())}
+      ${card('Top open risks', '', tbl(['ID', 'Risk', 'Score', 'Owner', 'Status'], top, [2]), 1)}
+      ${card('Approved change orders', `Original contract ${money(m.contract)} → revised ${money(m.revised)}.`, tbl(['CO', 'Description', 'Value', 'Days'], co, [2, 3]), 1)}
+    </div>`;
+  }
+
+  function vSettings() {
+    const p = D.project;
+    return `<section class="card"><h3>Project</h3><div class="pform">
+      <label>Project name<input data-p="name" value="${esc(p.name)}"></label>
+      <label>Currency<input data-p="currency" value="${esc(p.currency)}"></label>
+      <label>Original contract sum<input data-p="contract" inputmode="decimal" value="${esc(p.contract)}"></label>
+      <label>Retention %<input data-p="retention" inputmode="decimal" value="${esc(p.retention)}"></label>
+      <label>Data date (status date)<input data-p="dataDate" type="date" value="${esc(p.dataDate)}"></label></div>
+      <p class="cap">The data date is the "as of" date for progress, earned value, overdue milestones and interfaces.</p></section>
+      <section class="card"><h3>Save, share and reset</h3><p class="cap">Your data is saved automatically in this browser only. To move it to another computer or share it, export a file and import it there.</p>
+      <div class="acts"><button type="button" class="btn sm" data-act="export">Export data (JSON)</button><label class="btn sm file">Import data<input type="file" accept=".json,application/json" data-act="import" hidden></label>
+      <button type="button" class="btn sm" data-act="reset">Reset to sample data</button><button type="button" class="btn sm" data-act="clear">Start a blank project</button></div><p class="cap" data-msg="settings" role="status"></p></section>`;
+  }
+
+  // ---------- meetings & decisions ----------
+  const kb = n => n >= 1048576 ? (n / 1048576).toFixed(1) + ' MB' : Math.max(1, Math.round(n / 1024)) + ' KB';
+  const typeTag = l => `<span class="tag ${l.critical === 'Yes' ? 'bad' : l.type === 'Variation' ? 'warn' : l.type === 'Decision' ? 'info' : l.type === 'Action' ? 'act' : ''}">${esc(l.type)}${l.critical === 'Yes' && l.type !== 'Critical issue' ? ' · critical' : ''}</span>`;
+  function logTable(list) {
+    return tbl(['Date', 'Source', 'Type', 'Item', 'Owner', 'Due', 'WBS', 'Status'], list.map(l => {
+      const late = l.status !== 'Closed' && l.due && dt(l.due) < dd();
+      return `<tr><td>${fmtD(l.date)}</td><td>${esc(l.mom)}</td><td>${typeTag(l)}</td><td>${esc(l.text)}</td><td>${esc(l.owner)}</td><td>${l.due ? fmtD(l.due) : '—'}${late ? ' <span class="tag bad">late</span>' : ''}</td><td>${esc(l.wbs)}</td><td>${esc(l.status)}</td></tr>`;
+    }));
+  }
+  const byDateDesc = (a, b) => dt(b.date) - dt(a.date);
+  function vMeetings() {
+    const L = D.log, open = L.filter(l => l.status !== 'Closed');
+    const fromMom = D.pcos.filter(p => p.source);
+    const review = pending ? reviewPanel() : '';
+    const meetRows = [...D.meetings].sort(byDateDesc).map(m => `<tr><td>${fmtD(m.date)}</td><td>${esc(m.ref)}</td><td>${esc(m.title)}</td>
+      <td>${Object.entries(m.counts || {}).map(([k, v]) => `${v} ${esc(k.toLowerCase())}${v > 1 && !/s$/.test(k) ? 's' : ''}`).join(', ') || '—'}</td>
+      <td>${m.file ? `${esc(m.file)}<br><small class="cap">${m.origSize ? kb(m.origSize) + ' → ' : ''}${kb(m.stored || m.size || 0)} stored</small>` : '<small class="cap">no file</small>'}</td>
+      <td class="acts">${m.file ? `<button type="button" class="btn sm" data-act="mom-open" data-id="${esc(m.id)}">Open</button>` : ''}<button type="button" class="btn sm" data-act="mom-del" data-id="${esc(m.id)}">${momDelArm === m.id ? 'Confirm delete' : 'Delete'}</button></td></tr>`);
+    return `<div class="kpis">
+      ${kpi('Meetings recorded', String(D.meetings.length), D.meetings.length ? `latest ${fmtD([...D.meetings].sort(byDateDesc)[0].date)}` : 'upload minutes below')}
+      ${kpi('Decisions', String(L.filter(l => l.type === 'Decision').length), 'recorded in meetings')}
+      ${kpi('Open actions', String(open.filter(l => l.type === 'Action').length), `${open.filter(l => l.due && dt(l.due) < dd()).length} past due`, open.some(l => l.due && dt(l.due) < dd()) ? 'bad' : '')}
+      ${kpi('Open critical items', String(open.filter(l => l.critical === 'Yes').length), 'flagged critical', open.some(l => l.critical === 'Yes') ? 'bad' : 'good')}
+      ${kpi(`Variations from meetings (${esc(cur())})`, money(sum(fromMom, p => p.value)), `${fromMom.length} PCOs · ${fromMom.filter(p => p.status === 'Approved').length} approved as COs`, fromMom.length ? 'warn' : '')}
+    </div>
+    <section class="card upl"><h3>Upload minutes of meeting</h3>
+      <p class="cap">PDF (typed or scanned) or a photo (JPG, PNG). The text is read in your browser with free tools (pdf.js and Tesseract OCR); nothing is sent to a server. You review what was found before it is added. Decisions and critical items then show on the programme chart, and variations become PCOs (approved or instructed by the client: change orders).</p>
+      <label class="drop" data-drop><input type="file" accept=".pdf,image/*,.txt" data-act="mom-file" multiple hidden><b>Choose PDF or image files</b><span>or drop them here</span></label>
+      <details class="paste"><summary>Or paste the minutes as text</summary><textarea data-mom-text rows="6" placeholder="Paste the meeting minutes here"></textarea><button type="button" class="btn sm" data-act="mom-paste">Extract from text</button></details>
+      <p class="cap momst" data-msg="mom" role="status">${esc(momBusy)}${queue.length ? ` · ${queue.length} more file(s) waiting` : ''}</p></section>
+    ${review}
+    <div class="dgrid">
+      ${card('Meetings recorded', 'Stored files are compressed: small files are kept as they are, large ones as compressed page images.', tbl(['Date', 'Ref.', 'Title', 'Items added', 'File', ''], meetRows), 1)}
+      ${card('Project log', 'All decisions, actions, critical issues and variations, newest first. Edit or close them in the section below.', logTable([...L].sort(byDateDesc)), 1)}
+    </div>`;
+  }
+  function reviewPanel() {
+    const p = pending, sel = (k, i, v, opts) => `<select data-pi="${i}" data-pk="${k}">${opts.map(o => `<option${o === v ? ' selected' : ''}>${o}</option>`).join('')}</select>`;
+    const rows = p.items.map((it, i) => `<tr class="${it.include ? '' : 'off'}"><td><input type="checkbox" data-pi="${i}" data-pk="include"${it.include ? ' checked' : ''} aria-label="Add this item"></td>
+      <td>${sel('type', i, it.type, ['Decision', 'Action', 'Variation', 'Critical issue', 'Note'])}</td><td>${sel('critical', i, it.critical, ['No', 'Yes'])}</td>
+      <td><textarea data-pi="${i}" data-pk="text" rows="2">${esc(it.text)}</textarea></td><td><input data-pi="${i}" data-pk="owner" value="${esc(it.owner)}"></td>
+      <td><input type="date" data-pi="${i}" data-pk="due" value="${esc(it.due)}"></td><td><input data-pi="${i}" data-pk="wbs" list="dash-wbs2" value="${esc(it.wbs)}"></td>
+      <td><input class="r" inputmode="decimal" data-pi="${i}" data-pk="value" value="${esc(it.value || '')}"></td><td><input class="r" inputmode="decimal" data-pi="${i}" data-pk="days" value="${esc(it.days || '')}"></td>
+      <td>${sel('pcoStatus', i, it.pcoStatus, ['Potential', 'Submitted', 'Approved'])}</td></tr>`).join('');
+    return `<section class="card review"><h3>Review what was found: ${esc(p.fileName)}</h3>
+      <div class="pform"><label>Meeting date<input type="date" data-pm="date" value="${esc(p.date)}"></label><label>Meeting reference<input data-pm="ref" value="${esc(p.ref)}" placeholder="e.g. MOM-15"></label><label>Title<input data-pm="title" value="${esc(p.title)}"></label></div>
+      <p class="cap">${p.items.length} items found. Untick anything that should not be added and correct the type, owner, dates, WBS or amounts. "Variation" rows become PCOs; set PCO status to Approved when the client approved or instructed it, and it is recorded as a change order.</p>
+      ${p.items.length ? `<div class="tw"><table class="ed rv"><thead><tr><th>Add</th><th>Type</th><th>Critical</th><th>Item</th><th>Owner</th><th>Due</th><th>WBS</th><th>Value</th><th>Days</th><th>PCO status</th></tr></thead><tbody>${rows}</tbody></table></div>` : '<p>No items were recognised. Check the extracted text below; you can paste corrected text instead.</p>'}
+      <datalist id="dash-wbs2">${D.wbs.map(w => `<option value="${esc(w.code)}">${esc(w.name)}</option>`).join('')}</datalist>
+      <div class="acts"><button type="button" class="btn sm primary" data-act="mom-save">Add to project</button><button type="button" class="btn sm" data-act="mom-discard">Discard</button></div>
+      <details class="xt"><summary>Show the extracted text</summary><pre>${esc(p.text.slice(0, 20000))}</pre></details></section>`;
+  }
+  function setMomMsg() { const m = root && root.querySelector('[data-msg="mom"]'); if (m) m.textContent = momBusy + (queue.length ? ` · ${queue.length} more file(s) waiting` : ''); }
+  async function processNext() {
+    if (pending || busy || !queue.length) return;
+    const file = queue.shift(); busy = true; momBusy = `Reading ${file.name}…`; setMomMsg();
+    try {
+      const text = await Mom.extractText(file, s => { momBusy = `${file.name}: ${s}`; setMomMsg(); });
+      const p = Mom.parse(text, file.name, D.wbs);
+      pending = Object.assign(p, { fileName: file.name, file, text });
+      momBusy = `${p.items.length} items found in ${file.name}. Review them below, then add them to the project.`;
+    } catch (err) { momBusy = `${file.name}: ${err && err.message ? err.message : 'could not be read'}`; }
+    busy = false; tab = 'meetings'; render();
+    if (!pending) processNext();
+  }
+  const nextNo = (prefix, used) => { let n = 1; const u = new Set(used); while (u.has(prefix + String(n).padStart(3, '0'))) n++; return prefix + String(n).padStart(3, '0'); };
+  async function commitPending() {
+    const p = pending; if (!p || busy) return;
+    busy = true; momBusy = 'Saving…'; setMomMsg();
+    const id = 'mom-' + Date.now().toString(36), ref = (p.ref || p.fileName.replace(/\.[^.]+$/, '')).slice(0, 40), date = p.date || D.project.dataDate;
+    const items = p.items.filter(x => x.include), counts = {};
+    for (const it of items) {
+      counts[it.type] = (counts[it.type] || 0) + 1;
+      D.log.push({ date, mom: ref, type: it.type, critical: it.critical, text: it.text, owner: it.owner, due: it.due, wbs: it.wbs, status: 'Open', meetingId: id });
+      if (it.type === 'Variation') {
+        const appr = it.pcoStatus === 'Approved';
+        D.pcos.push({ no: nextNo('PCO-', D.pcos.map(x => x.no)), desc: it.text.slice(0, 160), value: num(it.value), days: num(it.days), status: it.pcoStatus, co: appr ? nextNo('CO-', D.pcos.map(x => x.co)) : '', source: `${ref} (${fmtD(date)})` });
+      }
+    }
+    const meet = { id, ref, title: p.title, date, file: p.file ? p.fileName : '', origSize: p.file ? p.file.size : 0, stored: 0, uploaded: new Date().toISOString().slice(0, 10), counts };
+    D.meetings.push(meet); save(); pending = null; render();
+    let stored = 0, note = '';
+    try {
+      const rec = await Mom.compact(p.file, p.text, s => { momBusy = s; setMomMsg(); });
+      await Mom.putFile(id, rec); stored = rec.storedSize;
+    } catch (e) { note = ' The file itself could not be stored in this browser.'; }
+    meet.stored = stored; save(); busy = false;
+    const v = items.filter(x => x.type === 'Variation');
+    momBusy = `Added ${items.length} items from ${ref}${v.length ? `, including ${v.length} PCO(s)` : ''}.${stored && p.file ? ` Stored ${kb(stored)} (original ${kb(p.file.size)}).` : ''}${note}`;
+    render(); processNext();
+  }
+
+  // ---------- pieces ----------
+  function wbsBars() {
+    const t = dd();
+    if (!D.wbs.length) return '<p class="cap">Add the WBS baseline below.</p>';
+    return '<div class="wbs">' + D.wbs.map(w => {
+      const a = actPct(w.code, t), p = planPct(w, t), tone = a + 0.5 >= p ? 'ok' : p - a > 10 ? 'late' : 'slip';
+      return `<div class="wrow"><div class="wl"><b>${esc(w.code)}</b> ${esc(w.name)}<small>${a.toFixed(0)}% of ${p.toFixed(0)}% planned · ${money(num(w.budget))}</small></div>
+        <div class="track" title="Actual ${a.toFixed(0)}%, planned ${p.toFixed(0)}%"><div class="fill ${tone}" style="width:${a}%"></div><div class="mark" style="left:${p}%"></div></div></div>`;
+    }).join('') + '</div>';
+  }
+  function msTable() {
+    return tbl(['ID', 'Milestone', 'Baseline', 'Forecast / actual', 'Var. (d)', 'Status'], [...D.milestones].sort((a, b) => dt(a.baseline) - dt(b.baseline)).map(m => {
+      const s = msStatus(m), v = msVar(m);
+      return `<tr><td>${esc(m.id)}</td><td>${esc(m.name)}</td><td>${fmtD(m.baseline)}</td><td>${fmtD(m.actual || m.forecast || m.baseline)}${m.actual ? ' (actual)' : ''}</td><td class="r">${v > 0 ? '+' : ''}${v}</td><td><span class="tag ${s[1]}">${s[0]}</span></td></tr>`;
+    }), [4]);
+  }
+  function upcoming() {
+    const list = D.milestones.filter(m => !m.actual).sort((a, b) => dt(a.forecast || a.baseline) - dt(b.forecast || b.baseline)).slice(0, 5);
+    return tbl(['Milestone', 'Baseline', 'Forecast', 'Status'], list.map(m => { const s = msStatus(m); return `<tr><td>${esc(m.name)}</td><td>${fmtD(m.baseline)}</td><td>${fmtD(m.forecast || m.baseline)}</td><td><span class="tag ${s[1]}">${s[0]}</span></td></tr>`; }));
+  }
+  function heat() {
+    const open = D.risks.filter(r => r.status !== 'Closed');
+    let h = '<div class="heat"><div class="hy">Likelihood</div><div class="hg">';
+    for (let l = 5; l >= 1; l--) {
+      h += `<div class="hl">${l}</div>`;
+      for (let i = 1; i <= 5; i++) { const n = open.filter(r => num(r.l) === l && num(r.i) === i).length, s = l * i; h += `<div class="hc ${s >= 15 ? 'hz3' : s >= 8 ? 'hz2' : 'hz1'}${n ? ' has' : ''}" title="L${l} × I${i} = ${s}: ${n} risk(s)">${n || ''}</div>`; }
+    }
+    return h + '<div></div>' + [1, 2, 3, 4, 5].map(i => `<div class="hl">${i}</div>`).join('') + '</div><div class="hx">Impact</div></div>';
+  }
+  function pipeline() {
+    const vals = ['Potential', 'Submitted', 'Approved', 'Rejected'].map(s => { const l = D.pcos.filter(p => p.status === s); return { s, v: sum(l, p => p.value), n: l.length }; });
+    const max = Math.max(1, ...vals.map(x => Math.abs(x.v)));
+    return '<div class="pipe">' + vals.map(x => `<div class="prow"><span>${x.s} <small>(${x.n})</small></span><div class="track"><div class="fill st-${x.s.toLowerCase()}" style="width:${Math.abs(x.v) / max * 100}%"></div></div><b>${money(x.v)}</b></div>`).join('') + '</div>';
+  }
+  function paySummary(m) {
+    const rows = [['IPCs certified (gross)', m.cert], ['IPCs paid', m.ipcPaid], ['IPC outstanding', m.ipcOut], ['Retention held', m.retHeld], ['Other payments paid', m.otherPaid], ['Other payments pending', m.otherPend], ['Total project spend', m.spend]];
+    return tbl(['Item', 'Amount'], rows.map(([k, v], i) => `<tr${i === rows.length - 1 ? ' class="tot"' : ''}><td>${k}</td><td class="r">${money(v, true)}</td></tr>`), [1]);
+  }
+  function catBars() {
+    const cats = PAY_CATS.map(c => ({ c, paid: sum(D.payments.filter(p => p.category === c && p.status === 'Paid'), p => p.amount), pend: sum(D.payments.filter(p => p.category === c && p.status === 'Pending'), p => p.amount) })).filter(x => x.paid || x.pend);
+    if (!cats.length) return '<p class="cap">No other payments yet.</p>';
+    const max = Math.max(...cats.map(x => x.paid + x.pend));
+    return '<div class="pipe">' + cats.map(x => `<div class="prow wide"><span>${esc(x.c)}</span><div class="track"><div class="stackbar"><i class="st-approved" style="width:${x.paid / max * 100}%"></i><i class="st-submitted" style="width:${x.pend / max * 100}%"></i></div></div><b>${money(x.paid + x.pend)}</b></div>`).join('') +
+      '</div>' + legend([['pa', 'Paid'], ['pe', 'Pending']]);
+  }
+  function ifList(list) {
+    if (!list.length) return '<p class="cap">None. All interface points are on time.</p>';
+    return tbl(['ID', 'Interface point', 'Provider → receiver', 'Need-by', 'Late'], list.map(x => `<tr><td>${esc(x.id)}</td><td>${esc(x.desc)}<br><small class="cap">${esc(x.requirement)}</small></td><td>${esc(wbsLabel(x.from))} → ${esc(wbsLabel(x.to))}</td><td>${fmtD(x.needBy)}</td><td class="r">${Math.round((dd() - dt(x.needBy)) / DAY)} d</td></tr>`), [4]);
+  }
+  function matrix() {
+    const parties = [...new Set(D.interfaces.flatMap(x => [String(x.from), String(x.to)]))].filter(Boolean)
+      .sort((a, b) => { const wa = D.wbs.findIndex(w => String(w.code) === a), wb = D.wbs.findIndex(w => String(w.code) === b); return (wa < 0 ? 999 : wa) - (wb < 0 ? 999 : wb) || a.localeCompare(b); });
+    if (!parties.length) return '<p class="cap">Add interface points below.</p>';
+    const rank = x => ifOverdue(x) ? 3 : x.status === 'Open' ? 2 : x.status === 'Agreed' ? 1 : 0, cls = ['mx-done', 'mx-agreed', 'mx-open', 'mx-late'];
+    const short = p => { const w = D.wbs.find(x => String(x.code) === p); return w ? `<b>${esc(w.code)}</b> ${esc(w.name.split(/[ (]/)[0])}` : esc(p); };
+    let h = `<div class="tw"><table class="mx"><thead><tr><th>Provider ↓ / Receiver →</th>${parties.map(p => `<th>${short(p)}</th>`).join('')}</tr></thead><tbody>`;
+    for (const a of parties) {
+      h += `<tr><th>${short(a)}</th>`;
+      for (const b of parties) {
+        const l = D.interfaces.filter(x => String(x.from) === a && String(x.to) === b);
+        h += a === b ? '<td class="mx-self"></td>' : l.length ? `<td class="${cls[Math.max(...l.map(rank))]}" title="${esc(l.map(x => x.id + ': ' + x.desc).join('\n'))}">${l.length}</td>` : '<td></td>';
+      }
+      h += '</tr>';
+    }
+    return h + '</tbody></table></div>';
+  }
+
+  // ---------- charts ----------
+  function niceMax(v) { if (v <= 0) return 1; const p = Math.pow(10, Math.floor(Math.log10(v))); return Math.ceil(v / p * 2) / 2 * p; }
+  const mLabel = (t, small) => { const d = new Date(t); return small ? MON[d.getUTCMonth()][0] : `${MON[d.getUTCMonth()]} '${String(d.getUTCFullYear()).slice(2)}`; };
+  function yAxis(W, H, m, max, fmt = money) {
+    let g = '';
+    for (let k = 0; k <= 4; k++) { const v = max * k / 4, y = H - m.b - (H - m.t - m.b) * k / 4; g += `<line x1="${m.l}" x2="${W - m.r}" y1="${y}" y2="${y}" stroke="var(--line)"/><text x="${m.l - 6}" y="${y + 4}" text-anchor="end" font-size="11" fill="var(--muted)">${fmt(v)}</text>`; }
+    return g;
+  }
+  function months() {
+    const ts = D.wbs.flatMap(w => [dt(w.start), dt(w.finish)]).filter(isFinite);
+    if (!ts.length) return [];
+    const a = new Date(Math.min(...ts)), b = new Date(Math.max(...ts)), out = [];
+    for (let y = a.getUTCFullYear(), mo = a.getUTCMonth(); Date.UTC(y, mo, 1) <= b.getTime(); mo++) { if (mo > 11) { mo = 0; y++; } out.push(monthEnd(y, mo)); if (out.length > 240) break; }
+    return out;
+  }
+  function lineSeries(pts, x, y, col, dash) {
+    const p = pts.filter(q => q && isFinite(q[1]));
+    if (!p.length) return '';
+    return `<polyline fill="none" stroke="${col}" stroke-width="2.5" ${dash ? 'stroke-dasharray="6 4"' : ''} points="${p.map(q => x(q[0]) + ',' + y(q[1])).join(' ')}"/><circle cx="${x(p[p.length - 1][0])}" cy="${y(p[p.length - 1][1])}" r="4" fill="${col}"/>`;
+  }
+  function xLabels(ms, x, H, small) {
+    const step = Math.ceil(ms.length / (small ? 5 : 12));
+    return ms.map((t, i) => i % step === 0 || i === ms.length - 1 ? `<text x="${x(i)}" y="${H - 6}" text-anchor="middle" font-size="11" fill="var(--muted)">${mLabel(t, small)}</text>` : '').join('');
+  }
+  const empty = (el, s) => { el.innerHTML = `<p class="cap" style="padding:20px">${s}</p>`; };
+
+  function drawScurve(el) {
+    const W = el.clientWidth, H = el.clientHeight, ms = months(); if (!W) return; if (!ms.length) return empty(el, 'Add the WBS baseline to draw the S-curve.');
+    const small = W < 520, m = { l: 58, r: 28, t: 12, b: 26 }, t0 = dd();
+    const pv = ms.map((t, i) => [i, PV(t)]), ev = ms.map((t, i) => t <= t0 + 15 * DAY || i === 0 ? [i, EV(Math.min(t, t0))] : null);
+    const ac = ms.map((t, i) => { const c = D.costs.find(c2 => { const d = new Date(dt(c2.month)); return monthEnd(d.getUTCFullYear(), d.getUTCMonth()) === t; }); return c ? [i, num(c.ac)] : null; });
+    const max = niceMax(Math.max(...pv.map(p => p[1]), ...ac.filter(Boolean).map(p => p[1]), 1));
+    const x = i => m.l + (ms.length === 1 ? (W - m.l - m.r) / 2 : (W - m.l - m.r) * i / (ms.length - 1)), y = v => H - m.b - (H - m.t - m.b) * v / max;
+    const di = ms.findIndex(t => t >= t0); const dx = di < 0 ? null : x(di);
+    el.innerHTML = `<svg viewBox="0 0 ${W} ${H}">${yAxis(W, H, m, max)}${dx !== null ? `<line x1="${dx}" x2="${dx}" y1="${m.t}" y2="${H - m.b}" stroke="var(--hv)" stroke-width="1.5" stroke-dasharray="3 3"/>` : ''}${lineSeries(pv, x, y, 'var(--c-pv)', 1)}${lineSeries(ac, x, y, 'var(--c-ac)')}${lineSeries(ev, x, y, 'var(--c-ev)')}${xLabels(ms, x, H, small)}</svg>`;
+  }
+  function drawIdx(el) {
+    const W = el.clientWidth, H = el.clientHeight, t0 = dd(); if (!W) return;
+    const ms = months().filter(t => t <= t0 + 15 * DAY).map(t => Math.min(t, t0)).filter(t => PV(t) > 0);
+    const pts = ms.map(t => { const ev = EV(t), pv = PV(t), ac = ACat(t); return { t, cpi: ac ? ev / ac : NaN, spi: pv ? ev / pv : NaN }; });
+    if (!pts.length) return empty(el, 'Log progress to draw the trend.');
+    const small = W < 520, m = { l: 40, r: 28, t: 12, b: 26 };
+    const vals = pts.flatMap(p => [p.cpi, p.spi]).filter(isFinite);
+    const lo = Math.min(0.7, Math.floor(Math.min(...vals) * 20) / 20), hi = Math.max(1.2, Math.ceil(Math.max(...vals) * 20) / 20);
+    const x = i => m.l + (pts.length === 1 ? (W - m.l - m.r) / 2 : (W - m.l - m.r) * i / (pts.length - 1)), y = v => H - m.b - (H - m.t - m.b) * (v - lo) / (hi - lo);
+    let g = '';
+    for (let k = 0; k <= 4; k++) { const v = lo + (hi - lo) * k / 4; g += `<line x1="${m.l}" x2="${W - m.r}" y1="${y(v)}" y2="${y(v)}" stroke="var(--line)"/><text x="${m.l - 6}" y="${y(v) + 4}" text-anchor="end" font-size="11" fill="var(--muted)">${v.toFixed(2)}</text>`; }
+    g += `<line x1="${m.l}" x2="${W - m.r}" y1="${y(1)}" y2="${y(1)}" stroke="var(--c-pv)" stroke-width="1.5" stroke-dasharray="6 4"/>`;
+    el.innerHTML = `<svg viewBox="0 0 ${W} ${H}">${g}${lineSeries(pts.map((p, i) => [i, p.cpi]), x, y, 'var(--c-ev)')}${lineSeries(pts.map((p, i) => [i, p.spi]), x, y, 'var(--c-ac)')}${xLabels(pts.map(p => p.t), x, H, small)}</svg>`;
+  }
+  function drawGantt(el) {
+    const W = el.clientWidth; if (!W) return;
+    if (!D.wbs.length) { el.style.height = '120px'; return empty(el, 'Add the WBS baseline to draw the programme.'); }
+    const small = W < 560, lw = small ? 92 : 210, rowH = 30, top = 42, msLane = D.milestones.length ? 44 : 0, mtLane = D.meetings.length ? 40 : 0;
+    const H = top + D.wbs.length * rowH + msLane + mtLane + 8;
+    if (Math.abs(el.clientHeight - H) > 1) el.style.height = H + 'px';
+    const ts = [...D.wbs.flatMap(w => [dt(w.start), dt(w.finish)]), ...D.milestones.flatMap(m => [dt(m.baseline), dt(m.forecast), dt(m.actual)]), ...D.meetings.map(m => dt(m.date)), dd()].filter(isFinite);
+    const a = new Date(Math.min(...ts)), b = new Date(Math.max(...ts));
+    const t0 = Date.UTC(a.getUTCFullYear(), a.getUTCMonth(), 1), t1 = monthEnd(b.getUTCFullYear(), b.getUTCMonth());
+    const x0 = lw + 6, x1 = W - 10, X = t => x0 + (x1 - x0) * (t - t0) / (t1 - t0);
+    let s = '';
+    // month grid
+    const nMon = (b.getUTCFullYear() - a.getUTCFullYear()) * 12 + b.getUTCMonth() - a.getUTCMonth() + 1, step = Math.ceil(nMon / (small ? 4 : 14));
+    for (let k = 0; k < nMon; k++) {
+      const t = Date.UTC(a.getUTCFullYear(), a.getUTCMonth() + k, 1), xx = X(t);
+      s += `<line x1="${xx}" x2="${xx}" y1="${top - 6}" y2="${H - 4}" stroke="var(--line)"/>`;
+      if (k % step === 0) s += `<text x="${xx + 3}" y="${top - 26}" font-size="11" fill="var(--muted)">${mLabel(t, false)}</text>`;
+    }
+    const tnow = dd();
+    D.wbs.forEach((w, i) => {
+      const y = top + i * rowH, s0 = dt(w.start), f0 = dt(w.finish), act = actPct(w.code, tnow), pl = planPct(w, tnow);
+      const nm = small ? w.code : `${w.code} ${w.name}`.slice(0, 30);
+      s += `<text x="0" y="${y + rowH / 2 + 4}" font-size="12.5" fill="var(--ink)"><title>${esc(w.code + ' ' + w.name)}</title>${esc(nm)}</text>`;
+      if (isFinite(s0) && isFinite(f0) && f0 > s0) {
+        const bx = X(s0), bw = Math.max(2, X(f0) - X(s0)), by = y + 7, bh = rowH - 14;
+        s += `<rect x="${bx}" y="${by}" width="${bw}" height="${bh}" rx="3" fill="var(--c-bl)"><title>${esc(w.code)} baseline ${fmtD(w.start)} – ${fmtD(w.finish)}</title></rect>`;
+        if (act > 0) s += `<rect x="${bx}" y="${by}" width="${bw * act / 100}" height="${bh}" rx="3" fill="${act + 0.5 >= pl ? 'var(--good)' : 'var(--bad)'}"><title>${esc(w.code)}: ${act}% complete, ${pl.toFixed(0)}% planned</title></rect>`;
+        const lx = bx + bw + 4;
+        for (const l of D.log) {
+          if (String(l.wbs) !== String(w.code) || l.type === 'Note' || !isFinite(dt(l.date))) continue;
+          const mx = X(dt(l.date)), col = l.critical === 'Yes' ? 'var(--bad)' : l.type === 'Variation' ? 'var(--hv)' : 'var(--c-ev)';
+          s += `<path d="M${mx - 6} ${y + 1}h12l-6 8z" fill="${col}" stroke="var(--bg)" stroke-width="1"><title>${esc(fmtD(l.date) + ' ' + l.mom + ' · ' + l.type + (l.critical === 'Yes' ? ' (critical)' : '') + ': ' + l.text)}</title></path>`;
+        }
+        if (lx + 30 < x1) s += `<text x="${lx}" y="${y + rowH / 2 + 4}" font-size="11.5" font-weight="700" fill="var(--ink)">${act}%</text>`;
+      }
+    });
+    if (msLane) {
+      const y = top + D.wbs.length * rowH + 22;
+      s += `<line x1="${x0}" x2="${x1}" y1="${y}" y2="${y}" stroke="var(--line)"/><text x="0" y="${y + 4}" font-size="12.5" font-weight="700" fill="var(--ink)">Milestones</text>`;
+      let lastLx = -99;
+      [...D.milestones].sort((p, q) => (dt(p.actual) || dt(p.forecast) || dt(p.baseline)) - (dt(q.actual) || dt(q.forecast) || dt(q.baseline))).forEach(m => {
+        const st = msStatus(m), b0 = dt(m.baseline), e0 = dt(m.actual) || dt(m.forecast) || b0; if (!isFinite(b0)) return;
+        const col = st[1] === 'good' ? 'var(--good)' : st[1] === 'warn' ? 'var(--warn)' : 'var(--bad)';
+        if (isFinite(e0) && Math.abs(e0 - b0) > DAY) s += `<line x1="${X(b0)}" x2="${X(e0)}" y1="${y}" y2="${y}" stroke="${col}" stroke-width="2" stroke-dasharray="3 2"/><path d="M${X(b0)} ${y - 6}l6 6-6 6-6-6z" fill="none" stroke="var(--muted)" stroke-width="1.5"/>`;
+        s += `<path d="M${X(e0)} ${y - 8}l8 8-8 8-8-8z" fill="${col}" stroke="var(--bg)" stroke-width="1.5"><title>${esc(m.id + ' ' + m.name)}: baseline ${fmtD(m.baseline)}, ${m.actual ? 'actual ' + fmtD(m.actual) : 'forecast ' + fmtD(m.forecast || m.baseline)} (${st[0]})</title></path>`;
+        if (!small && X(e0) - lastLx > 24) { lastLx = X(e0); s += `<text x="${X(e0)}" y="${y + 20}" font-size="10.5" text-anchor="middle" fill="var(--muted)">${esc(m.id)}</text>`; }
+      });
+    }
+    if (mtLane) {
+      const y = top + D.wbs.length * rowH + msLane + 20;
+      s += `<line x1="${x0}" x2="${x1}" y1="${y}" y2="${y}" stroke="var(--line)"/><text x="0" y="${y + 4}" font-size="12.5" font-weight="700" fill="var(--ink)">Meetings</text>`;
+      for (const m of D.meetings) {
+        const t = dt(m.date); if (!isFinite(t)) continue;
+        const items = D.log.filter(l => l.meetingId === m.id), crit = items.some(l => l.critical === 'Yes' && l.status !== 'Closed');
+        s += `<circle cx="${X(t)}" cy="${y}" r="7" fill="${crit ? 'var(--bad)' : 'var(--c-ev)'}" stroke="var(--bg)" stroke-width="2"><title>${esc(m.ref + ' · ' + fmtD(m.date) + ' · ' + items.length + ' items' + (crit ? ', open critical items' : ''))}</title></circle>`;
+        if (!small) s += `<text x="${X(t)}" y="${y + 20}" font-size="10.5" text-anchor="middle" fill="var(--muted)">${esc(m.ref)}</text>`;
+      }
+    }
+    const dx = X(tnow);
+    s += `<line x1="${dx}" x2="${dx}" y1="${top - 6}" y2="${H - 4}" stroke="var(--hv)" stroke-width="2"/><text x="${dx}" y="${top - 9}" font-size="10.5" text-anchor="middle" fill="var(--hvink)" font-weight="700">Data date</text>`;
+    el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" style="height:${H}px">${s}</svg>`;
+  }
+  function drawIpc(el) {
+    const W = el.clientWidth, H = el.clientHeight, p = D.ipcs; if (!W) return; if (!p.length) return empty(el, 'Add IPCs below.');
+    const small = W < 520, m = { l: 58, r: 10, t: 12, b: 26 };
+    const max = niceMax(Math.max(...p.map(r => num(r.certified)), 1));
+    const gw = (W - m.l - m.r) / p.length, bw = Math.min(20, gw / 4.2), y = v => H - m.b - (H - m.t - m.b) * Math.max(0, v) / max;
+    let s = '';
+    p.forEach((r, i) => {
+      const cx = m.l + gw * i + gw / 2;
+      [[num(r.certified), 'var(--c-ap)', 'certified'], [ipcNet(r), 'var(--c-ce)', 'net payable'], [num(r.paid), 'var(--c-pa)', 'paid']].forEach(([v, col, k], j) => {
+        const bx = cx + (j - 1.5) * (bw + 2), yy = y(v);
+        s += `<rect x="${bx}" y="${yy}" width="${bw}" height="${Math.max(0, H - m.b - yy)}" rx="2" fill="${col}"><title>${esc(r.no)} ${k}: ${money(v, true)}</title></rect>`;
+      });
+      if (i % Math.ceil(p.length / (small ? 5 : 14)) === 0) s += `<text x="${cx}" y="${H - 6}" text-anchor="middle" font-size="11" fill="var(--muted)">${esc(small ? String(r.no).replace(/\D+/g, '') : r.no)}</text>`;
+    });
+    el.innerHTML = `<svg viewBox="0 0 ${W} ${H}">${yAxis(W, H, m, max)}${s}</svg>`;
+  }
+  function drawCash(el) {
+    const W = el.clientWidth, H = el.clientHeight; if (!W) return;
+    const ts = [...D.ipcs.map(r => dt(r.period)), ...D.payments.map(p => dt(p.date))].filter(isFinite);
+    if (!ts.length) return empty(el, 'Add IPCs or payments below.');
+    const a = new Date(Math.min(...ts)), b = new Date(Math.max(...ts, dd())), ms = [];
+    for (let k = 0; ; k++) { const t = monthEnd(a.getUTCFullYear(), a.getUTCMonth() + k); ms.push(t); if (t >= b.getTime() || k > 240) break; }
+    const ipcBy = t => D.ipcs.filter(r => monthEnd(new Date(dt(r.period)).getUTCFullYear(), new Date(dt(r.period)).getUTCMonth()) <= t);
+    const net = ms.map((t, i) => [i, sum(ipcBy(t), ipcNet)]);
+    const paid = ms.map((t, i) => [i, sum(D.ipcs.filter(r => r.paidDate && dt(r.paidDate) <= t), r => r.paid)]);
+    const all = ms.map((t, i) => [i, paid[i][1] + sum(D.payments.filter(p => p.status === 'Paid' && dt(p.date) <= t), p => p.amount)]);
+    const small = W < 520, m = { l: 58, r: 28, t: 12, b: 26 }, max = niceMax(Math.max(...all.map(q => q[1]), ...net.map(q => q[1]), 1));
+    const x = i => m.l + (ms.length === 1 ? (W - m.l - m.r) / 2 : (W - m.l - m.r) * i / (ms.length - 1)), y = v => H - m.b - (H - m.t - m.b) * v / max;
+    el.innerHTML = `<svg viewBox="0 0 ${W} ${H}">${yAxis(W, H, m, max)}${lineSeries(all, x, y, 'var(--c-ac)')}${lineSeries(net, x, y, 'var(--c-ev)')}${lineSeries(paid, x, y, 'var(--c-pa)')}${xLabels(ms, x, H, small)}</svg>`;
+  }
+  const CHARTS = { scurve: drawScurve, idx: drawIdx, gantt: drawGantt, ipc: drawIpc, cash: drawCash };
+
+  // ---------- editors ----------
+  function editor(k) {
+    const sc = SCHEMA[k], codes = D.wbs.map(w => w.code);
+    const inp = (c, r, i) => {
+      const v = r[c[0]], base = `data-t="${k}" data-i="${i}" data-k="${c[0]}" aria-label="${c[1]}"`;
+      if (c[2] === 's') return `<select ${base}>${c[3].map(o => `<option${o === v ? ' selected' : ''}>${o}</option>`).join('')}</select>`;
+      if (c[2] === 'd') return `<input type="date" ${base} value="${esc(v)}">`;
+      if (c[2] === 'm') return `<input type="month" ${base} value="${esc(v)}">`;
+      if (c[2] === 'n') return `<input ${base} inputmode="decimal" class="r" value="${esc(v)}">`;
+      if (c[2] === 'w') return `<input ${base} list="dash-wbs" value="${esc(v)}">`;
+      return `<input ${base} value="${esc(v)}">`;
+    };
+    return `<details class="card edit" data-ed="${k}"${openEd.has(k) ? ' open' : ''}><summary>Edit ${sc.title.toLowerCase()} <small>(${D[k].length} rows)</small></summary>
+      ${sc.note ? `<p class="cap">${sc.note}</p>` : ''}<div class="tw"><table class="ed"><thead><tr>${sc.cols.map(c => `<th>${c[1]}</th>`).join('')}<th></th></tr></thead><tbody>` +
+      D[k].map((r, i) => `<tr>${sc.cols.map(c => `<td>${inp(c, r, i)}</td>`).join('')}<td><button type="button" class="x" data-del="${k}" data-i="${i}" aria-label="Delete row">×</button></td></tr>`).join('') +
+      `</tbody></table></div><button type="button" class="btn sm" data-add="${k}">Add row</button></details>` +
+      (k === 'interfaces' || k === 'progress' ? `<datalist id="dash-wbs">${codes.map(c => `<option value="${esc(c)}">`).join('')}</datalist>` : '');
+  }
+
+  // ---------- render ----------
+  const VIEWS = { overview: vOverview, schedule: vSchedule, meetings: vMeetings, payments: vPayments, interfaces: vInterfaces, risks: vRisks, settings: vSettings };
+  function drawCharts() {
+    ros.forEach(r => r.disconnect()); ros = [];
+    root.querySelectorAll('[data-chart]').forEach(el => { const f = CHARTS[el.dataset.chart]; let w = 0; const ro = new ResizeObserver(() => { if (el.clientWidth !== w) { w = el.clientWidth; f(el); } }); ro.observe(el); ros.push(ro); f(el); });
+  }
+  function refresh() { const v = root.querySelector('.dview'); if (v) { v.innerHTML = VIEWS[tab](); drawCharts(); } root.querySelector('.dhead').innerHTML = head(); }
+  const isSample = () => JSON.stringify(D) === JSON.stringify(sample());
+  function projectBar() {
+    const ix = index();
+    return `<div class="pbar"><label class="psel">Project<select data-act="proj-switch" aria-label="Choose project">${ix.list.map(p => `<option value="${esc(p.id)}"${p.id === projId ? ' selected' : ''}>${esc(p.name || 'Untitled project')}</option>`).join('')}</select></label>
+      <button type="button" class="btn sm primary" data-act="proj-save">Save</button><button type="button" class="btn sm" data-act="proj-new">New project</button>
+      <button type="button" class="btn sm" data-act="proj-copy">Save as copy</button><button type="button" class="btn sm" data-act="proj-del">${delArm ? 'Confirm delete' : 'Delete'}</button>
+      <span class="note" data-msg="proj" role="status">${esc(savedAt || 'Changes save automatically in this browser')}</span></div>
+      ${showNew ? `<form class="card newp" data-form="newp"><h3>New project</h3><div class="lrow"><label>Project name<input name="name" required placeholder="e.g. Warehouse extension, Plot 12"></label>
+        <label>Currency<input name="currency" value="${esc(D.project.currency || 'AED')}" size="6"></label>
+        <label>Start from<span class="steps"><label class="chip"><input type="radio" name="start" value="blank" checked><span>Blank</span></label><label class="chip"><input type="radio" name="start" value="sample"><span>Sample data</span></label></span></label>
+        <button class="btn sm primary" type="submit">Create project</button><button class="btn sm" type="button" data-act="proj-cancel">Cancel</button></div></form>` : ''}`;
+  }
+  const head = () => `${projectBar()}<h1>${esc(D.project.name || 'Project dashboard')}</h1><p class="lede">Data date ${fmtD(D.project.dataDate)} · Contract ${esc(cur())} ${money(num(D.project.contract), true)}${isSample() ? ' · <em>sample data: replace it with your project in each tab\'s edit sections</em>' : ''}</p>`;
+  function render() {
+    root.innerHTML = `<div class="dhead">${head()}</div>
+      <div class="dtabs" role="tablist">${TABS.map(([k, l]) => `<button type="button" role="tab" data-tab="${k}" aria-selected="${tab === k}">${l}</button>`).join('')}</div>
+      <div class="dview">${VIEWS[tab]()}</div><div class="dedit">${TAB_TABLES[tab].map(editor).join('')}</div>`;
+    drawCharts();
+  }
+
+  function setVal(t) {
+    if (t.dataset.p) { D.project[t.dataset.p] = ['contract', 'retention'].includes(t.dataset.p) ? num(t.value) : t.value; save(); return true; }
+    if (t.dataset.t) { const col = SCHEMA[t.dataset.t].cols.find(c => c[0] === t.dataset.k); D[t.dataset.t][+t.dataset.i][t.dataset.k] = col[2] === 'n' ? num(t.value) : t.value; save(); return true; }
+    return false;
+  }
+  function msg(where, s) { const m = root.querySelector(`[data-msg="${where}"]`); if (m) m.textContent = s; }
+  function setPending(t) {
+    if (!pending) return false;
+    if (t.dataset.pm) { pending[t.dataset.pm] = t.value; return true; }
+    if (t.dataset.pk) {
+      const it = pending.items[+t.dataset.pi], k = t.dataset.pk;
+      it[k] = k === 'include' ? t.checked : ['value', 'days'].includes(k) ? num(t.value) : t.value;
+      if (k === 'include') t.closest('tr').classList.toggle('off', !t.checked);
+      return true;
+    }
+    return false;
+  }
+  function onInput(e) { if (!setPending(e.target)) setVal(e.target); }
+  function onChange(e) {
+    const t = e.target;
+    if (setPending(t)) return;
+    if (t.dataset.act === 'proj-switch') { switchTo(t.value); return; }
+    if (t.dataset.act === 'mom-file' && t.files.length) { queue.push(...t.files); t.value = ''; processNext(); setMomMsg(); return; }
+    if (t.dataset.act === 'import' && t.files[0]) {
+      t.files[0].text().then(txt => { const d = JSON.parse(txt); if (!d.project || !Array.isArray(d.wbs)) throw 0; for (const k of Object.keys(SCHEMA)) if (!Array.isArray(d[k])) d[k] = []; D = d; save(); render(); msg('settings', 'Data imported.'); })
+        .catch(() => msg('settings', 'That file is not a dashboard export.'));
+      return;
+    }
+    if (t.closest('[data-form]')) return;
+    if (setVal(t)) { if (t.dataset.k === 'code' && t.dataset.t === 'wbs') render(); else refresh(); }
+  }
+  function onClick(e) {
+    const b = e.target.closest('button'); if (!b || !root.contains(b) || b.closest('form')) return;
+    if (b.dataset.tab) { tab = b.dataset.tab; render(); return; }
+    if (b.dataset.add) { const k = b.dataset.add; e.preventDefault(); openEd.add(k); D[k].push(Object.fromEntries(SCHEMA[k].cols.map(c => [c[0], c[2] === 'n' ? 0 : c[2] === 's' ? c[3][0] : c[2] === 'd' ? D.project.dataDate : '']))); save(); render(); return; }
+    if (b.dataset.del) { e.preventDefault(); D[b.dataset.del].splice(+b.dataset.i, 1); save(); render(); return; }
+    const a = b.dataset.act;
+    const pmsg = s => { const m = root.querySelector('[data-msg="proj"]'); if (m) m.textContent = s; };
+    if (a === 'proj-save') { save(); pmsg(savedAt.startsWith('Saved') ? `${savedAt}. Project "${D.project.name}" is stored in this browser.` : savedAt); return; }
+    if (a === 'proj-new') { showNew = true; render(); const i = root.querySelector('[data-form="newp"] input[name=name]'); if (i) i.focus(); return; }
+    if (a === 'proj-cancel') { showNew = false; render(); return; }
+    if (a === 'proj-copy') { D = JSON.parse(JSON.stringify(D)); D.project.name = (D.project.name || 'Project') + ' (copy)'; projId = newId(); save(); render(); pmsg(`Saved as a new project: ${D.project.name}`); return; }
+    if (a === 'proj-del') {
+      if (!delArm) { delArm = projId; render(); pmsg(`Click "Confirm delete" to remove "${D.project.name}" from this browser. Export it first if you may need it.`); setTimeout(() => { if (delArm) { delArm = ''; if (root.isConnected) render(); } }, 6000); return; }
+      const ix = index(), gone = D.project.name;
+      try { localStorage.removeItem(PKEY(projId)); } catch (e) {}
+      for (const m of D.meetings) Mom.delFile(m.id);
+      ix.list = ix.list.filter(p => p.id !== projId); ix.current = ix.list[0] ? ix.list[0].id : ''; writeIndex(ix); delArm = '';
+      D = load(); render(); pmsg(`Deleted "${gone}".`); return;
+    }
+    if (a === 'mom-paste') {
+      const ta = root.querySelector('[data-mom-text]'), txt = ta ? ta.value.trim() : '';
+      if (!txt) { momBusy = 'Paste the minutes text first.'; setMomMsg(); return; }
+      const p = Mom.parse(txt, 'Pasted text', D.wbs); pending = Object.assign(p, { fileName: 'Pasted text', file: null, text: txt });
+      momBusy = `${p.items.length} items found in the pasted text. Review them below.`; render(); return;
+    }
+    if (a === 'mom-save') { commitPending(); return; }
+    if (a === 'mom-discard') { pending = null; momBusy = 'Discarded.'; render(); processNext(); return; }
+    if (a === 'mom-open') { Mom.openStored(b.dataset.id).catch(err => { momBusy = err.message; setMomMsg(); }); return; }
+    if (a === 'mom-del') {
+      const id = b.dataset.id;
+      if (momDelArm !== id) { momDelArm = id; render(); setTimeout(() => { if (momDelArm === id) { momDelArm = ''; if (root.isConnected) render(); } }, 6000); return; }
+      const m = D.meetings.find(x => x.id === id);
+      D.meetings = D.meetings.filter(x => x.id !== id); D.log = D.log.filter(l => l.meetingId !== id); Mom.delFile(id); momDelArm = '';
+      save(); momBusy = `Deleted ${m ? m.ref : 'meeting'} and its log items. PCOs it created were kept; remove them on the Risks & changes tab if needed.`; render(); return;
+    }
+    if (a === 'export') {
+      const blob = new Blob([JSON.stringify(D, null, 2)], { type: 'application/json' }), l = document.createElement('a');
+      l.href = URL.createObjectURL(blob); l.download = (String(D.project.name || 'project').replace(/[^\w-]+/g, '-').toLowerCase()) + '-dashboard.json'; document.body.appendChild(l); l.click(); l.remove();
+      msg('settings', 'Exported. Keep the file safe; import it on any computer.');
+    } else if (a === 'reset') { D = sample(); save(); render(); msg('settings', 'Sample data restored.'); }
+    else if (a === 'clear') { D = { project: { name: 'My project', currency: D.project.currency, contract: 0, retention: 5, dataDate: new Date().toISOString().slice(0, 10) } }; for (const k of Object.keys(SCHEMA)) D[k] = []; save(); render(); msg('settings', 'Blank project started. Begin with the WBS baseline on the Schedule & progress tab.'); }
+  }
+  function onSubmit(e) {
+    const np = e.target.closest('[data-form="newp"]');
+    if (np) {
+      e.preventDefault(); const fd = new FormData(np), name = String(fd.get('name') || '').trim() || 'New project';
+      D = fd.get('start') === 'sample' ? Object.assign(sample(), {}) : blank(name, String(fd.get('currency') || 'AED'));
+      D.project.name = name; D.project.currency = String(fd.get('currency') || D.project.currency);
+      projId = newId(); showNew = false; pending = null; queue = []; save(); tab = 'schedule'; render();
+      const m = root.querySelector('[data-msg="proj"]'); if (m) m.textContent = `Created "${name}". Start with the WBS baseline below, then milestones and progress.`;
+      return;
+    }
+    const f = e.target.closest('[data-form="log"]'); if (!f) return;
+    e.preventDefault();
+    const fd = new FormData(f), code = fd.get('code'), date = fd.get('date');
+    let p = fd.get('pct'); if (p === 'other') p = fd.get('custom');
+    p = Math.max(0, Math.min(100, num(p)));
+    if (!code || !date) return msg('log', 'Choose a WBS element and a date.');
+    const ex = D.progress.find(x => String(x.code) === String(code) && x.date === date);
+    if (ex) ex.pct = p; else D.progress.push({ date, code, pct: p });
+    D.progress.sort((a, b) => dt(a.date) - dt(b.date) || String(a.code).localeCompare(String(b.code)));
+    save(); render(); msg('log', `Logged ${wbsLabel(code)} at ${p}% on ${fmtD(date)}.`);
+  }
+  function onToggle(e) { const d = e.target; if (d.dataset && d.dataset.ed) { d.open ? openEd.add(d.dataset.ed) : openEd.delete(d.dataset.ed); } }
+
+  return {
+    mount(el) {
+      root = el; D = load();
+      el.addEventListener('input', onInput); el.addEventListener('change', onChange); el.addEventListener('click', onClick);
+      el.addEventListener('submit', onSubmit); el.addEventListener('toggle', onToggle, true);
+      el.addEventListener('dragover', e => { const z = e.target.closest('[data-drop]'); if (z) { e.preventDefault(); z.classList.add('over'); } });
+      el.addEventListener('dragleave', e => { const z = e.target.closest('[data-drop]'); if (z) z.classList.remove('over'); });
+      el.addEventListener('drop', e => { const z = e.target.closest('[data-drop]'); if (!z) return; e.preventDefault(); z.classList.remove('over'); if (e.dataTransfer.files.length) { queue.push(...e.dataTransfer.files); processNext(); setMomMsg(); } });
+      render();
+    },
+    unmount() { ros.forEach(r => r.disconnect()); ros = []; },
+  };
+})();
+
+</script>
+<script>{ Dash.mount(document.getElementById('dash')); }</script>
+</body>
+</html>
