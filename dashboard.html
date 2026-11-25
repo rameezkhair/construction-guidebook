@@ -236,6 +236,15 @@ tr.wrn td:first-child{box-shadow:inset 3px 0 var(--warn)}
 .mlist li:last-child{border-bottom:0}.mtext{flex:1 1 360px;font-size:14.5px}.mfoot{margin-top:10px;align-items:center}
 .trail .mlist::before,.trail .mlist li::before{display:none!important;content:none!important}
 .trail .mlist li{display:flex!important;padding:8px 0!important;grid-template-columns:none}
+.ipcgrid{display:grid;grid-template-columns:minmax(0,1fr) minmax(0,1.2fr);gap:16px;align-items:start}@media(max-width:760px){.ipcgrid{grid-template-columns:minmax(0,1fr)}}
+table.brk td{font-weight:400!important}table.brk tr.tot td{font-weight:700!important}table.brk tr.err td{color:var(--bad);font-weight:700!important}.errtxt{color:var(--bad)}
+.minutes{border:1px solid var(--line);border-radius:8px;padding:14px 16px;background:var(--bg)}
+.minutes header{border-bottom:2px solid var(--ink);padding-bottom:10px;margin-bottom:10px}.mh-kicker{font-size:12px;font-weight:700;color:var(--muted)}
+.minutes h4{margin:2px 0 8px;font-size:18px}.minutes dl{display:grid;grid-template-columns:auto minmax(0,1fr);gap:2px 14px;margin:0;font-size:14px}.minutes dt{font-weight:700;color:var(--muted)}.minutes dd{margin:0}
+table.mintbl td:first-child{font-weight:700;white-space:nowrap}table.mintbl td:nth-child(2){min-width:280px}
+.trail .checks li{display:block!important;padding:6px 10px 6px 28px!important;grid-template-columns:none!important}
+.trail .checks li::before{width:auto!important;height:auto!important;border:0!important;background:none!important;border-radius:0!important;left:9px!important;top:6px!important}
+.minutes header{display:block!important}.minutes .mh-kicker{display:block}
 
 </style>
 <script>new MutationObserver(()=>{for(const c of document.querySelectorAll('.stack td:not([data-l])')){let i=0,p=c;while(p=p.previousElementSibling)i+=p.colSpan;c.dataset.l=c.closest('table').rows[0].cells[i]?.textContent||''}}).observe(document,{childList:true,subtree:true})</script>
@@ -363,7 +372,7 @@ window.Mom = (() => {
     const dueM = t.match(/\b(?:by|before|due(?:\s+date)?|on or before|target(?:\s+date)?|deadline)\s*[:\-]?\s*(.{4,30})/i);
     const due = dueM ? parseDate(dueM[1]) : '';
     const daysM = (isVar || /extension|EOT|time impact/i.test(t)) ? t.match(/\b(\d{1,3})\s*(?:calendar\s+|working\s+)?days?\b/i) : null;
-    return { include: type !== 'Note', type, critical: isCrit ? 'Yes' : 'No', text: t.length > 400 ? t.slice(0, 397) + '…' : t, owner, due, value: isVar ? money(t) : 0,
+    return { include: type !== 'Note', type, critical: isCrit ? 'Yes' : 'No', text: t.length > 4000 ? t.slice(0, 3997) + '…' : t, owner, due, value: isVar ? money(t) : 0,
       days: daysM ? +daysM[1] : 0, wbs: wbsMatch(t, wbs), pcoStatus: isVar && RX.approvedByClient.test(t) ? 'Approved' : 'Potential' };
   }
   function parse(text, fileName, wbs) {
@@ -375,11 +384,12 @@ window.Mom = (() => {
     const head = lines.slice(0, 15);
     const title = (head.find(l => /meeting\s*(no\.?|number|#)/i.test(l)) || head.find(l => /meeting|minutes|MOM/i.test(l) && !/^minutes of meeting$/i.test(l)) || head.find(l => /meeting|minutes|MOM/i.test(l)) || fileName).slice(0, 120);
     // Items: numbered or bulleted lines, with continuation lines appended.
-    const START = /^(\(?\d{1,2}[).:]|\d{1,2}(?:\.\d{1,2}){1,2}[).:]?|\(?[a-z][).]|[-•*▪●○■])\s+(?=\S)/i;
+    // A new item starts with "1." "1)" "2.3" "(a)" "a)" or a bullet. Lines starting in lower case are always continuations.
+    const START = /^(\(?\d{1,2}[).:]|\d{1,2}(?:\.\d{1,2}){1,2}[).:]?|\([a-z]\)|[a-z]\)|[-•*▪●○■])\s+(?=\S)/i;
     const items = []; let curItem = null, skipping = false;
     for (const l of lines) {
       if (SKIP.test(l)) { skipping = true; curItem = null; continue; }
-      if (START.test(l)) { skipping = false; curItem = l.replace(START, ''); items.push(curItem); continue; }
+      if (START.test(l) && !(/^[a-z]/.test(l) && !/^[a-z]\)/.test(l))) { skipping = false; curItem = l.replace(START, ''); items.push(curItem); continue; }
       if (curItem !== null && !skipping && !/^(page \d|minutes of meeting)/i.test(l)) { items[items.length - 1] += ' ' + l; curItem = items[items.length - 1]; }
     }
     let raw = items.filter(s => s.length > 12);
@@ -602,7 +612,7 @@ window.Dash = (() => {
     cert.forEach((c, i) => {
       const m = String(i + 2).padStart(2, '0'), ret = c * 0.05, adv = c * 0.10, net = c - ret - adv;
       cum += c;
-      ipcs.push({ no: 'IPC-' + String(i + 1).padStart(2, '0'), period: '2026-' + m, applied: Math.round(c * 1.08), certified: c, retention: ret, advance: adv, other: 0, vat: 0, statedNet: i === 6 ? net + 14000 : net, cumGross: cum,
+      ipcs.push({ no: 'IPC-' + String(i + 1).padStart(2, '0'), period: '2026-' + m, applied: Math.round(c * 1.08), certified: c, retention: ret, advance: adv, other: 0, vat: 0, statedNet: net, cumGross: cum,
         paid: i === 8 ? 0 : i === 7 ? Math.round(net * 0.5) : net, paidDate: i === 8 ? '' : `2026-${String(i + 3).padStart(2, '0')}-20` });
     });
     return {
@@ -736,7 +746,9 @@ window.Dash = (() => {
   const dt = s => { const t = Date.parse(String(s || '') + (String(s || '').length === 7 ? '-01' : '')); return isFinite(t) ? t : NaN; };
   const DAY = 864e5;
   const MON = ['Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun', 'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'];
-  const fmtD = s => { const t = dt(s); if (!isFinite(t)) return '—'; const d = new Date(t); return `${d.getUTCDate()} ${MON[d.getUTCMonth()]} ${String(d.getUTCFullYear()).slice(2)}`; };
+  const fmtD = s => { const t = dt(s); if (!isFinite(t)) return '—'; const d = new Date(t); return `${d.getUTCDate()} ${MON[d.getUTCMonth()]} ${d.getUTCFullYear()}`; };
+  const DAYS = ['Sunday', 'Monday', 'Tuesday', 'Wednesday', 'Thursday', 'Friday', 'Saturday'], MONL = ['January', 'February', 'March', 'April', 'May', 'June', 'July', 'August', 'September', 'October', 'November', 'December'];
+  const fmtLong = s => { const t = dt(s); if (!isFinite(t)) return '—'; const d = new Date(t); return `${DAYS[d.getUTCDay()]}, ${d.getUTCDate()} ${MONL[d.getUTCMonth()]} ${d.getUTCFullYear()}`; };
   const monthEnd = (y, m) => Date.UTC(y, m + 1, 0);
   let D, root, tab = 'overview', ros = [], openEd = new Set();
   let pending = null, momBusy = '', busy = false, queue = [], showNew = false, delArm = '', momDelArm = '';
@@ -823,7 +835,11 @@ window.Dash = (() => {
       const certTo = sum(upto, x => x.certified), revised = num(D.project.contract) + sum(D.pcos.filter(p => p.status === 'Approved'), p => p.value);
       if (revised && certTo > revised + 1) warn(`Certified to date ${money(certTo, true)} exceeds the revised contract sum ${money(revised, true)}`);
     }
+    if (num(r.previous) && num(r.cumGross)) { const exp = num(r.cumGross) - num(r.previous); if (Math.abs(exp - cert) > tolOf(exp)) bad(`On the certificate: gross to date ${money(num(r.cumGross), true)} − previously certified ${money(num(r.previous), true)} = ${money(exp, true)}, but gross this period is ${money(cert, true)}`); }
+    if (r.retentionRate && rate && Math.abs(r.retentionRate - rate) > 0.01) warn(`Certificate uses ${r.retentionRate}% retention; the contract says ${rate}%`);
     const net = ipcNet(r);
+    if (num(r.total)) { const base = num(r.statedNet) || net, exp = base + num(r.vat); if (Math.abs(exp - num(r.total)) > tolOf(exp)) bad(`Total for payment ${money(num(r.total), true)} ≠ net ${money(base, true)} + VAT ${money(num(r.vat), true)} = ${money(exp, true)} (difference ${money(num(r.total) - exp, true)})`); }
+    if (num(r.vat) && (num(r.statedNet) || net)) { const vr = num(r.vat) / (num(r.statedNet) || net) * 100; if (Math.abs(vr - Math.round(vr)) > 0.05) warn(`VAT is ${vr.toFixed(2)}% of net; check the VAT rate`); }
     if (num(r.statedNet) && Math.abs(net - num(r.statedNet)) > tolOf(net)) bad(`Net on certificate ${money(num(r.statedNet), true)} ≠ ${money(cert, true)} − ${money(ret, true)} − ${money(adv, true)}${num(r.other) ? ' − ' + money(num(r.other), true) : ''} = ${money(net, true)} (difference ${money(num(r.statedNet) - net, true)})`);
     if (num(r.paid) > net + num(r.vat) + tolOf(net)) bad(`Paid ${money(num(r.paid), true)} exceeds the amount due ${money(net + num(r.vat), true)}`);
     return out;
@@ -836,14 +852,9 @@ window.Dash = (() => {
   // Checks on an uploaded certificate before it is added
   function ipcDocChecks(F) {
     const list = sortedIpcs().filter(x => x.no !== F.no && String(x.period) <= String(F.period || '9999'));
-    const prev = list[list.length - 1], row = { certified: F.gross, retention: F.retention, advance: F.advance, other: F.other, vat: F.vat, statedNet: F.net, cumGross: F.cumGross, paid: 0 };
+    const prev = list[list.length - 1], row = { certified: F.gross, retention: F.retention, advance: F.advance, other: F.other, vat: F.vat, statedNet: F.net, cumGross: F.cumGross, paid: 0, total: F.total, previous: F.previous, retentionRate: F.retentionRate };
     const out = ipcChecks(row, prev, [...list, row]);
-    const tol = tolOf(num(F.gross));
-    if (num(F.cumGross) && num(F.previous) && Math.abs(num(F.cumGross) - num(F.previous) - num(F.gross)) > tol) out.unshift({ lvl: 'bad', m: `On the certificate: to date ${money(num(F.cumGross), true)} − previously certified ${money(num(F.previous), true)} = ${money(num(F.cumGross) - num(F.previous), true)}, but gross this period is ${money(num(F.gross), true)}` });
     if (num(F.previous) && list.length) { const regPrev = sum(list, x => x.certified); if (Math.abs(regPrev - num(F.previous)) > tolOf(regPrev)) out.push({ lvl: 'warn', m: `"Previously certified" ${money(num(F.previous), true)} ≠ total of earlier IPCs in the register ${money(regPrev, true)}` }); }
-    if (num(F.total) && Math.abs(num(F.net) + num(F.vat) - num(F.total)) > tol) out.push({ lvl: 'bad', m: `Total for payment ${money(num(F.total), true)} ≠ net ${money(num(F.net), true)} + VAT ${money(num(F.vat), true)} = ${money(num(F.net) + num(F.vat), true)}` });
-    if (num(F.vat) && num(F.net)) { const r = num(F.vat) / num(F.net) * 100; if (Math.abs(r - 5) > 0.05 && Math.abs(r - Math.round(r)) > 0.05) out.push({ lvl: 'warn', m: `VAT is ${r.toFixed(2)}% of net; check the VAT rate` }); }
-    if (F.retentionRate && num(D.project.retention) && Math.abs(F.retentionRate - num(D.project.retention)) > 0.01) out.push({ lvl: 'warn', m: `Certificate uses ${F.retentionRate}% retention; the contract says ${num(D.project.retention)}%` });
     return out;
   }
   const checkList = cs => cs.length ? '<ul class="checks">' + cs.map(c => `<li class="${c.lvl}">${esc(c.m)}</li>`).join('') + '</ul>' : '<p class="ok-line">All calculations check out.</p>';
@@ -1075,16 +1086,18 @@ window.Dash = (() => {
       ${kpi(`Total project spend (${c})`, money(m.spend), 'IPCs paid + other payments paid')}
     </div>
     <section class="card upl"><h3>Upload an interim payment certificate</h3>
-      <p class="cap">Drop the IPC as a PDF or photo. Its figures are read and every calculation is checked before it is added to the register: gross this period, retention, advance recovery, net, VAT and the running totals against earlier certificates.</p>
-      <label class="drop" data-drop-kind="ipc"><input type="file" accept=".pdf,image/*,.txt" data-act="ipc-file" hidden><b>Drop IPC here</b><span>or click to choose a file</span></label>
-      <details class="paste"><summary>Or paste the certificate text</summary><textarea data-doc-text rows="6" placeholder="Paste the IPC here"></textarea><button type="button" class="btn sm" data-act="doc-paste-ipc">Read as IPC</button></details>
+      <p class="cap">Drop all your IPCs at once (PDF or photos). Each is read in your browser and added straight to the register in period order; every calculation is re-checked (gross this period, retention, advance recovery, net, VAT and the running totals) and any error is highlighted. Certificates already recorded are skipped; a revised version of one updates it.</p>
+      <label class="drop" data-drop-kind="ipc"><input type="file" accept=".pdf,image/*,.txt" data-act="ipc-file" multiple hidden><b>Drop IPCs here</b><span>or click to choose files (several at once)</span></label>
+      <div class="acts"><button type="button" class="btn sm" data-act="ipc-new">Add IPC manually</button></div>
+      <label class="inl"><input type="checkbox" data-ipcreview${D.project.ipcReview ? ' checked' : ''}> Review each certificate before it is added (otherwise IPCs are added automatically)</label>
+      <details class="paste"><summary>Or paste the certificate text</summary><textarea data-doc-text rows="6" placeholder="Paste the IPC here"></textarea><button type="button" class="btn sm" data-act="doc-paste-ipc">Add from text</button></details>
       <p class="cap momst" data-msg="doc" role="status">${esc(docBusy)}</p></section>
     ${docPend && docPend.kind === 'ipc' ? docReview() : ''}
     <div class="dgrid">
       ${card('IPCs by period', `Certified (gross), net payable and paid (${c}).`, legend([['ap', 'Certified'], ['ce', 'Net payable'], ['pa', 'Paid']]) + fig('ipc'), 1)}
       ${card('Cumulative cash flow', `IPC net payable vs paid, plus other project payments (${c}).`, legend([['ev', 'IPC net payable'], ['ok2', 'IPC paid'], ['ac', 'All project payments paid']]) + fig('cash'), 1)}
       ${card('IPC register', '', tbl(['IPC', 'Period', 'Certified', 'Retention', 'Advance rec.', 'Net', 'Paid', 'Outstanding', 'Status', 'Checks'], ipcRows, [2, 3, 4, 5, 6, 7]), 1)}
-      ${card('IPC calculation checks', 'Every certificate is re-calculated: gross this period against gross to date, retention against the contract %, advance recovery, net against the certificate, and paid against due. Red = arithmetic error; amber = worth checking.', sortedIpcs().filter(r => (chk.get(r) || []).length).map(r => `<h4 class="ck">${esc(r.no)} · ${esc(r.period)}</h4>${checkList(chk.get(r))}`).join('') || checkList([]), 1)}
+            ${ipcsCard()}
       ${card('Other payments by category', `Paid and pending (${c}).`, catBars())}
       ${card('Other project payments', '', tbl(['Date', 'Category', 'Payee', 'Ref.', 'Amount', 'Status'], payRows, [4]), 1)}
     </div>`;
@@ -1184,7 +1197,10 @@ window.Dash = (() => {
     const counts = m => Object.entries(m.counts || {}).map(([k, v]) => `${v} ${esc(k.toLowerCase())}${v > 1 && !/s$/.test(k) ? 's' : ''}`).join(', ') || 'no items';
     const rows = ms.map(m => {
       const items = D.log.filter(l => l.meetingId === m.id);
-      const list = items.length ? `<ol class="mlist">${items.map(l => `<li>${typeTag(l)}<span class="mtext">${esc(l.text)}</span><small class="cap">${[l.owner, l.due ? 'due ' + fmtD(l.due) : '', l.wbs ? 'WBS ' + esc(l.wbs) : ''].filter(Boolean).join(' · ')}</small><span class="tag ${l.status === 'Closed' ? 'good' : 'warn'}">${esc(l.status)}</span></li>`).join('')}</ol>` : '<p class="cap">No items were added from this meeting.</p>';
+      const num0 = (String(m.ref).match(/(\d+)\s*$/) || [])[1] || '';
+      const list = `<div class="minutes"><header><span class="mh-kicker">Minutes of meeting</span><h4>${esc(m.title || m.ref)}</h4>
+        <dl><dt>Reference</dt><dd>${esc(m.ref)}</dd><dt>Date</dt><dd>${fmtLong(m.date)}</dd>${m.file ? `<dt>Source</dt><dd>${esc(m.file)}</dd>` : ''}<dt>Items</dt><dd>${items.length}</dd></dl></header>
+        ${items.length ? `<div class="tw"><table class="mini mintbl"><thead><tr><th>No.</th><th>Item recorded</th><th>Type</th><th>Action by</th><th>Due</th><th>WBS</th><th>Status</th></tr></thead><tbody>${items.map((l, i) => `<tr><td>${num0 ? num0 + '.' : ''}${i + 1}</td><td>${esc(l.text)}</td><td>${typeTag(l)}</td><td>${esc(l.owner || '—')}</td><td>${l.due ? fmtD(l.due) : '—'}</td><td>${esc(l.wbs || '—')}</td><td><span class="tag ${l.status === 'Closed' ? 'good' : 'warn'}">${esc(l.status)}</span></td></tr>`).join('')}</tbody></table></div>` : '<p class="cap">No items were added from this meeting.</p>'}</div>`;
       return `<details class="trail" data-ed="meet-${esc(m.id)}"${openEd.has('meet-' + m.id) ? ' open' : ''}><summary><b>${esc(m.ref)}</b><span class="cap">${fmtD(m.date)}</span><span class="mtitle">${esc(m.title)}</span><small class="cap">${counts(m)}</small></summary>
         <div class="mbody">${list}
         <div class="acts mfoot">${m.file ? `<span class="cap">${esc(m.file)} · ${m.origSize ? kb(m.origSize) + ' → ' : ''}${kb(m.stored || m.size || 0)} stored</span><button type="button" class="btn sm" data-act="mom-open" data-id="${esc(m.id)}">Open file</button>` : '<span class="cap">No file stored</span>'}<button type="button" class="btn sm" data-act="mom-del" data-id="${esc(m.id)}">${momDelArm === m.id ? 'Confirm delete' : 'Delete meeting'}</button></div></div></details>`;
@@ -1342,7 +1358,7 @@ window.Dash = (() => {
         <div class="pform">${IPC_FIELDS.map(([k, l]) => `<label>${l}<input data-if="${k}"${k === 'paidDate' ? ' type="date"' : ['no', 'period'].includes(k) ? '' : ' inputmode="decimal" class="r"'} value="${esc(F[k] ?? '')}"></label>`).join('')}</div>
         <h4 class="ck">Calculation checks</h4>${checkList(cs)}
         <div class="acts"><button type="button" class="btn sm primary" data-act="doc-apply">${D.ipcs.some(x => x.no === F.no) ? 'Update ' + esc(F.no) + ' in the register' : 'Add to IPC register'}</button><button type="button" class="btn sm" data-act="doc-discard">Discard</button></div>
-        <details class="xt"><summary>Show the extracted text</summary><pre>${esc(p.text.slice(0, 20000))}</pre></details></section>`;
+        ${p.text ? `<details class="xt"><summary>Show the extracted text</summary><pre>${esc(p.text.slice(0, 20000))}</pre></details>` : ''}</section>`;
     }
     if (p.kind === 'sub') {
       const F = p.fields, sc = SCHEMA.subs.cols;
@@ -1404,12 +1420,78 @@ window.Dash = (() => {
   }
   function setDocMsg() { const m = root && root.querySelector('[data-msg="doc"]'); if (m) m.textContent = docBusy; }
   const IPC_FIELDS = [['no', 'IPC No.'], ['period', 'Period (YYYY-MM)'], ['cumGross', 'Gross value to date'], ['previous', 'Previously certified'], ['gross', 'Gross this period'], ['retention', 'Retention this period'], ['advance', 'Advance recovery'], ['other', 'Other deductions'], ['net', 'Net amount due'], ['vat', 'VAT'], ['total', 'Total for payment'], ['applied', 'Applied by contractor'], ['paid', 'Paid'], ['paidDate', 'Paid date']];
+  const nextIpcNo = () => { const n = Math.max(0, ...D.ipcs.map(x => parseInt(String(x.no).replace(/\D+/g, ''), 10) || 0)) + 1; return 'IPC-' + String(n).padStart(2, '0'); };
+  function ipcFields(text) {
+    const r = Mom.parseIpc(text);
+    if (r.gross === null && r.cumGross !== null && r.previous !== null) r.gross = r.cumGross - r.previous;
+    const ex = D.ipcs.find(x => x.no === r.no);
+    return { autoNo: !r.no, no: r.no || nextIpcNo(), period: r.period, cumGross: r.cumGross || 0, previous: r.previous || 0, gross: r.gross || 0, retention: r.retention || 0, advance: r.advance || 0, other: r.other || 0, net: r.net || 0, vat: r.vat || 0, total: r.total || 0, applied: ex ? ex.applied : r.gross || 0, paid: ex ? ex.paid : 0, paidDate: ex ? ex.paidDate : '', retentionRate: r.retentionRate };
+  }
+  function applyIpcFields(F, file, text, fileName) {
+    const ex = D.ipcs.find(x => x.no === F.no);
+    const row = Object.assign(ex || {}, { no: F.no, period: F.period, applied: num(F.applied), certified: num(F.gross), retention: num(F.retention), advance: num(F.advance), other: num(F.other), vat: num(F.vat), statedNet: num(F.net), cumGross: num(F.cumGross), paid: num(F.paid), paidDate: F.paidDate, total: num(F.total), previous: num(F.previous), retentionRate: F.retentionRate || null });
+    if (file) { row.fileId = 'ipc-' + Date.now().toString(36) + Math.random().toString(36).slice(2, 5); row.file = fileName || file.name; const id = row.fileId; Mom.compact(file, text, () => {}).then(rec => Mom.putFile(id, rec)).catch(() => {}); }
+    if (!ex) D.ipcs.push(row);
+    return { row, updated: !!ex };
+  }
+  let ipcReadQueue = [], ipcDelArm = '';
+  // Read every dropped IPC, then add them in period order (or review them one by one).
+  async function processIpcFiles(files) {
+    if (busy || !files.length) return;
+    busy = true; const read = [], bad = [];
+    for (const file of files) {
+      docBusy = `Reading ${file.name}…`; setDocMsg();
+      try { read.push({ text: await Mom.extractText(file, st => { docBusy = `${file.name}: ${st}`; setDocMsg(); }), file, fileName: file.name }); }
+      catch (e) { bad.push(file.name); }
+    }
+    busy = false;
+    if (D.project.ipcReview) { ipcReadQueue = read.slice(1); if (read[0]) readDoc('ipc', read[0].text, read[0].fileName, read[0].file); else { docBusy = 'Could not read: ' + bad.join(', '); render(); } return; }
+    commitIpcs(read, bad);
+  }
+  function commitIpcs(read, bad = []) {
+    const list = read.map(r => ({ ...r, F: ipcFields(r.text) })).sort((a, b) => String(a.F.period).localeCompare(String(b.F.period)) || String(a.F.no).localeCompare(String(b.F.no), undefined, { numeric: true }));
+    const added = [], updated = [], skipped = [];
+    for (const it of list) {
+      const F = it.F;
+      if (F.autoNo) F.no = nextIpcNo();
+      const ex = D.ipcs.find(x => x.no === F.no);
+      if (ex && Math.abs(num(ex.certified) - num(F.gross)) < 1 && Math.abs(num(ex.retention) - num(F.retention)) < 1 && Math.abs(num(ex.statedNet || 0) - num(F.net)) < 1) { skipped.push(F.no); continue; }
+      const r = applyIpcFields(F, it.file, it.text, it.fileName); (r.updated ? updated : added).push(F.no);
+    }
+    save();
+    const chk = allIpcChecks(), touched = new Set([...added, ...updated]);
+    const errs = [...chk.entries()].filter(([r, cs]) => touched.has(r.no) && cs.some(c => c.lvl === 'bad')).map(([r]) => r.no);
+    docBusy = (added.length ? `Added ${added.join(', ')}. ` : '') + (updated.length ? `Updated ${updated.join(', ')}. ` : '') + (skipped.length ? `Already recorded, skipped: ${skipped.join(', ')}. ` : '')
+      + (touched.size ? (errs.length ? `Calculation errors found in ${errs.join(', ')}: see the highlighted rows.` : 'All calculations check out.') : (added.length + updated.length + skipped.length ? '' : 'No IPC figures were recognised.'))
+      + (bad.length ? ` Could not read: ${bad.join(', ')}.` : '');
+    tab = 'payments'; render();
+  }
+  function ipcsCard() {
+    const list = sortedIpcs().reverse(), chk = allIpcChecks();
+    const withErr = list.filter(r => (chk.get(r) || []).some(c => c.lvl === 'bad')).length;
+    const line = (k, v, cls) => `<tr${cls ? ` class="${cls}"` : ''}><td>${k}</td><td class="r">${v}</td></tr>`;
+    const rows = list.map(r => {
+      const cs = chk.get(r) || [], nb = cs.filter(c => c.lvl === 'bad').length, n = ipcNet(r), due = n + num(r.vat);
+      const badge = nb ? `<span class="tag bad">${nb} error${nb > 1 ? 's' : ''}</span>` : cs.length ? `<span class="tag warn">${cs.length} to check</span>` : '<span class="tag good">✓ checks out</span>';
+      const prev = num(r.cumGross) ? num(r.cumGross) - num(r.certified) : null;
+      const breakdown = `<table class="mini brk"><tbody>
+        ${num(r.cumGross) ? line('Gross value to date', money(num(r.cumGross), true)) + line('Less previously certified', money(prev, true)) : ''}
+        ${line('Gross this period', money(num(r.certified), true))}${line('Less retention', money(num(r.retention), true))}${line('Less advance recovery', money(num(r.advance), true))}
+        ${num(r.other) ? line('Less other deductions', money(num(r.other), true)) : ''}
+        ${line('Net (calculated)', money(n, true), 'tot')}${num(r.statedNet) ? line('Net per certificate', money(num(r.statedNet), true), Math.abs(num(r.statedNet) - n) > tolOf(n) ? 'err' : '') : ''}
+        ${num(r.vat) ? line('VAT', money(num(r.vat), true)) + line('Amount due', money(due, true)) : ''}
+        ${line('Paid' + (r.paidDate ? ' on ' + fmtD(r.paidDate) : ''), money(num(r.paid), true))}${line('Outstanding', money(due - num(r.paid), true))}</tbody></table>`;
+      return `<details class="trail" data-ed="ipc-${esc(r.no)}"${openEd.has('ipc-' + r.no) ? ' open' : ''}><summary><b>${esc(r.no)}</b><span class="cap">${esc(r.period)}</span><span class="mtitle">Net ${money(n, true)}</span>${badge}<small class="cap">paid ${money(num(r.paid), true)}</small></summary>
+        <div class="mbody"><div class="ipcgrid">${breakdown}<div><h4 class="ck">Calculation checks</h4>${checkList(cs)}</div></div>
+        <div class="acts mfoot">${r.file ? `<span class="cap">${esc(r.file)}</span><button type="button" class="btn sm" data-act="sub-open" data-id="${esc(r.fileId)}">Open file</button>` : '<span class="cap">No file stored</span>'}<button type="button" class="btn sm" data-act="ipc-del" data-id="${esc(r.no)}">${ipcDelArm === r.no ? 'Confirm delete' : 'Delete IPC'}</button></div></div></details>`;
+    }).join('');
+    return `<details class="card span2 trailbox" data-ed="ipcs"${openEd.has('ipcs') ? ' open' : ''}><summary><h3>IPCs recorded</h3><span class="cap">${list.length} certificate${list.length === 1 ? '' : 's'}${list.length ? ' · latest ' + esc(list[0].no) + ', ' + esc(list[0].period) : ''}${withErr ? ` · <b class="errtxt">${withErr} with calculation errors</b>` : ''}</span></summary>
+      <p class="cap">Click a certificate to see its breakdown and calculation checks. Red = arithmetic error; amber = worth checking.</p>
+      <div class="trails">${rows || '<p class="cap">No IPCs yet. Drop certificates above.</p>'}</div></details>`;
+  }
   function readDoc(kind, text, fileName, file) {
     if (kind === 'ipc') {
-      const r = Mom.parseIpc(text);
-      if (r.gross === null && r.cumGross !== null && r.previous !== null) r.gross = r.cumGross - r.previous;
-      const ex = D.ipcs.find(x => x.no === r.no);
-      const fields = { no: r.no || nextNo('IPC-', D.ipcs.map(x => x.no)).replace(/-0+(\d)/, '-$1'), period: r.period, cumGross: r.cumGross || 0, previous: r.previous || 0, gross: r.gross || 0, retention: r.retention || 0, advance: r.advance || 0, other: r.other || 0, net: r.net || 0, vat: r.vat || 0, total: r.total || 0, applied: ex ? ex.applied : r.gross || 0, paid: ex ? ex.paid : 0, paidDate: ex ? ex.paidDate : '', retentionRate: r.retentionRate };
+      const fields = ipcFields(text);
       docPend = { kind, text, fileName, file: file || null, fields };
       const cs = ipcDocChecks(fields), nb = cs.filter(c => c.lvl === 'bad').length;
       docBusy = `${fields.no} read from ${fileName}: ${nb ? nb + ' calculation error' + (nb > 1 ? 's' : '') + ' found' : 'calculations check out'}. Review below.`;
@@ -1565,13 +1647,10 @@ window.Dash = (() => {
   function applyDoc() {
     const p = docPend; if (!p) return;
     if (p.kind === 'ipc') {
-      const F = p.fields, ex = D.ipcs.find(x => x.no === F.no);
-      const row = Object.assign(ex || {}, { no: F.no, period: F.period, applied: num(F.applied), certified: num(F.gross), retention: num(F.retention), advance: num(F.advance), other: num(F.other), vat: num(F.vat), statedNet: num(F.net), cumGross: num(F.cumGross), paid: num(F.paid), paidDate: F.paidDate });
-      if (p.file) { row.fileId = 'ipc-' + Date.now().toString(36); row.file = p.fileName; }
-      if (!ex) D.ipcs.push(row);
+      const F = p.fields, res = applyIpcFields(F, p.file, p.text, p.fileName), ex = res.updated, row = res.row;
       const cs = ipcDocChecks(F).filter(c => c.lvl === 'bad').length;
       docPend = null; save(); docBusy = `${ex ? 'Updated' : 'Added'} ${row.no}.${cs ? ` ${cs} calculation error${cs > 1 ? 's are' : ' is'} highlighted in the register.` : ''}`; render();
-      if (p.file) Mom.compact(p.file, p.text, () => {}).then(rec => Mom.putFile(row.fileId, rec)).catch(() => {});
+      if (ipcReadQueue.length) { const nx = ipcReadQueue.shift(); readDoc('ipc', nx.text, nx.fileName, nx.file); }
       return;
     }
     if (p.kind === 'sub') {
@@ -1803,7 +1882,7 @@ window.Dash = (() => {
     el.innerHTML = `<svg viewBox="0 0 ${W} ${H}" style="height:${H}px">${s}</svg>`;
   }
   function drawIpc(el) {
-    const W = el.clientWidth, H = el.clientHeight, p = D.ipcs; if (!W) return; if (!p.length) return empty(el, 'Add IPCs below.');
+    const W = el.clientWidth, H = el.clientHeight, p = sortedIpcs(); if (!W) return; if (!p.length) return empty(el, 'Add IPCs below.');
     const small = W < 520, m = { l: 58, r: 10, t: 12, b: 26 };
     const max = niceMax(Math.max(...p.map(r => num(r.certified)), 1));
     const gw = (W - m.l - m.r) / p.length, bw = Math.min(20, gw / 4.2), y = v => H - m.b - (H - m.t - m.b) * Math.max(0, v) / max;
@@ -1912,6 +1991,8 @@ window.Dash = (() => {
     if (setPending(t) || setDoc(t)) { if (t.dataset.if) render(); return; }
     if (t.hasAttribute('data-momreview')) { D.project.momReview = t.checked; save(); return; }
     const KIND = { 'wbs-file': 'wbs', 'prog-file': 'prog', 'tender-file': 'tender', 'boq-file': 'boq', 'sub-file': 'sub', 'ipc-file': 'ipc' };
+    if (t.dataset.act === 'ipc-file' && t.files.length) { const fl = [...t.files]; t.value = ''; processIpcFiles(fl); return; }
+    if (t.hasAttribute('data-ipcreview')) { D.project.ipcReview = t.checked; save(); return; }
     if (KIND[t.dataset.act] && t.files.length) { const f = t.files[0]; t.value = ''; processDoc(KIND[t.dataset.act], f); return; }
     if (t.dataset.act === 'proj-switch') { switchTo(t.value); return; }
     if (t.dataset.act === 'mom-file' && t.files.length) { queue.push(...t.files); t.value = ''; processNext(); setMomMsg(); return; }
@@ -1951,10 +2032,15 @@ window.Dash = (() => {
       momBusy = `${p.items.length} items found in the pasted text. Review them below.`; render(); return;
     }
     if (a === 'mom-save') { commitPending(); return; }
+    if (a === 'doc-paste-ipc' && !D.project.ipcReview) { const ta = root.querySelector('[data-doc-text]'), txt = ta ? ta.value.trim() : ''; if (!txt) { docBusy = 'Paste the certificate text first.'; setDocMsg(); return; } ta.value = ''; commitIpcs([{ text: txt, file: null, fileName: 'Pasted text' }]); return; }
+    if (a === 'ipc-new') { const last = sortedIpcs().pop(); const per = last && /^\d{4}-\d{2}$/.test(last.period) ? (() => { const [y, mo] = last.period.split('-').map(Number); return mo === 12 ? `${y + 1}-01` : `${y}-${String(mo + 1).padStart(2, '0')}`; })() : D.project.dataDate.slice(0, 7);
+      docPend = { kind: 'ipc', text: '', fileName: 'manual entry', file: null, fields: { no: nextIpcNo(), period: per, cumGross: 0, previous: last && num(last.cumGross) ? num(last.cumGross) : 0, gross: 0, retention: 0, advance: 0, other: 0, net: 0, vat: 0, total: 0, applied: 0, paid: 0, paidDate: '' } };
+      docBusy = 'Enter the certificate figures; the checks update as you type each value.'; render(); return; }
+    if (a === 'ipc-del') { const no = b.dataset.id; if (ipcDelArm !== no) { ipcDelArm = no; render(); setTimeout(() => { if (ipcDelArm === no) { ipcDelArm = ''; if (root.isConnected) render(); } }, 6000); return; } const r = D.ipcs.find(x => x.no === no); if (r && r.fileId) Mom.delFile(r.fileId); D.ipcs = D.ipcs.filter(x => x.no !== no); ipcDelArm = ''; save(); docBusy = `Deleted ${no}.`; render(); return; }
     if (a && a.startsWith('doc-paste-')) { const ta = root.querySelector('[data-doc-text]'), txt = ta ? ta.value.trim() : ''; if (!txt) { docBusy = 'Paste the document text first.'; setDocMsg(); return; } readDoc(a.slice(10), txt, 'Pasted text'); return; }
     if (a === 'doc-apply') { applyDoc(); return; }
     if (a === 'sub-open') { Mom.openStored(b.dataset.id).catch(err => { docBusy = err.message; setDocMsg(); }); return; }
-    if (a === 'doc-discard') { docPend = null; docBusy = 'Discarded.'; render(); return; }
+    if (a === 'doc-discard') { const wasIpc = docPend && docPend.kind === 'ipc'; docPend = null; docBusy = 'Discarded.'; if (wasIpc && ipcReadQueue.length) { const nx = ipcReadQueue.shift(); readDoc('ipc', nx.text, nx.fileName, nx.file); return; } render(); return; }
     if (a === 'mom-discard') { pending = null; momBusy = 'Discarded.'; render(); processNext(); return; }
     if (a === 'mom-open') { Mom.openStored(b.dataset.id).catch(err => { momBusy = err.message; setMomMsg(); }); return; }
     if (a === 'mom-del') {
@@ -2002,7 +2088,7 @@ window.Dash = (() => {
       el.addEventListener('dragover', e => { const z = e.target.closest('[data-drop]'); if (z) { e.preventDefault(); z.classList.add('over'); } });
       el.addEventListener('dragleave', e => { const z = e.target.closest('[data-drop]'); if (z) z.classList.remove('over'); });
       el.addEventListener('dragover', e => { const z = e.target.closest('[data-drop-kind]'); if (z) { e.preventDefault(); z.classList.add('over'); } });
-      el.addEventListener('drop', e => { const k = e.target.closest('[data-drop-kind]'); if (k) { e.preventDefault(); k.classList.remove('over'); if (e.dataTransfer.files[0]) processDoc(k.dataset.dropKind, e.dataTransfer.files[0]); return; } });
+      el.addEventListener('drop', e => { const k = e.target.closest('[data-drop-kind]'); if (k) { e.preventDefault(); k.classList.remove('over'); if (k.dataset.dropKind === 'ipc') { processIpcFiles([...e.dataTransfer.files]); return; } if (e.dataTransfer.files[0]) processDoc(k.dataset.dropKind, e.dataTransfer.files[0]); return; } });
       el.addEventListener('drop', e => { const z = e.target.closest('[data-drop]'); if (!z) return; e.preventDefault(); z.classList.remove('over'); if (e.dataTransfer.files.length) { queue.push(...e.dataTransfer.files); processNext(); setMomMsg(); } });
       render();
     },
