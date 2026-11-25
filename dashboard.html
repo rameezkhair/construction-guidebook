@@ -214,6 +214,8 @@ table.tv{min-width:640px}
 .trail li:last-child::before{background:var(--c-ev)}
 .tl-when{display:flex;flex-direction:column;font-size:13px;line-height:1.3}.tl-when small{color:var(--muted)}.tl-what{font-size:14.5px}
 table.rv select.fol{min-width:240px;max-width:320px}
+.upl .dgrid:has(> :nth-child(3)){grid-template-columns:repeat(3,minmax(0,1fr))}
+@media(max-width:900px){.upl .dgrid:has(> :nth-child(3)){grid-template-columns:minmax(0,1fr)}}
 
 </style>
 <script>new MutationObserver(()=>{for(const c of document.querySelectorAll('.stack td:not([data-l])')){let i=0,p=c;while(p=p.previousElementSibling)i+=p.colSpan;c.dataset.l=c.closest('table').rows[0].cells[i]?.textContent||''}}).observe(document,{childList:true,subtree:true})</script>
@@ -494,7 +496,9 @@ window.Mom = (() => {
     const out = {
       name: field(/^(?:project(?: name| title)?|name of (?:the )?(?:project|works)|the works)\s*[:\-]\s*(.{4,90})$/i).slice(0, 90),
       employer: field(/^(?:the )?(?:employer|client|owner)\s*[:\-]\s*(.{2,80})$/i),
-      contractor: field(/^(?:the )?contractor\s*[:\-]\s*(.{2,80})$/i),
+      contractor: field(/^(?:the )?(?:main )?contractor\s*[:\-]\s*(.{2,80})$/i),
+      subcontractor: field(/^(?:the )?sub-?contractor\s*[:\-]\s*(.{2,80})$/i),
+      scope: field(/^(?:scope(?: of works)?|subcontract works|the subcontract works|package|works package|trade)\s*[:\-]\s*(.{3,120})$/i),
       currency: cur, contract: sumTxt ? amount(sumTxt) : 0,
       commencement: dateAfter(/(?:commencement date|date of commencement|start date|commence(?:ment)? on)[^.]{0,30}?(?:\d{4}-\d{1,2}-\d{1,2}|\d{1,2}[\/.\-]\d{1,2}[\/.\-]\d{2,4}|\d{1,2}(?:st|nd|rd|th)?\s+[A-Za-z]{3,9}\.?,?\s+\d{4}|[A-Za-z]{3,9}\.?\s+\d{1,2},?\s+\d{4})/i),
       completion: dateAfter(/(?:completion date|date for completion|date of completion|completed by)[^.]{0,30}?(?:\d{4}-\d{1,2}-\d{1,2}|\d{1,2}[\/.\-]\d{1,2}[\/.\-]\d{2,4}|\d{1,2}(?:st|nd|rd|th)?\s+[A-Za-z]{3,9}\.?,?\s+\d{4}|[A-Za-z]{3,9}\.?\s+\d{1,2},?\s+\d{4})/i),
@@ -534,7 +538,7 @@ window.Mom = (() => {
     return { rows, grand: grand ? num(grand) : rows.reduce((a, r) => a + r.amount, 0) };
   }
 
-  return { extractText, parse, putFile, getFile, delFile, parseDate, compact, openStored, gunzip, usage, parseWbs, parseProgress, parseTender, parseBoq };
+  return { extractText, parse, putFile, getFile, delFile, parseDate, compact, openStored, gunzip, usage, parseWbs, parseProgress, parseTender, parseBoq, wbsMatch };
 })();
 
 // Project dashboard: schedule and progress (WBS baseline + progress log), milestones, interfaces,
@@ -611,6 +615,12 @@ window.Dash = (() => {
       ],
       ipcs,
       boq: [['Preliminaries', 3600000, '1.0'], ['Substructure', 7200000, '2.0'], ['Concrete frame', 11500000, '3.0'], ['Facade and glazing', 8400000, '4.0'], ['Mechanical and electrical services', 9800000, '5.0'], ['Finishes', 5500000, '6.0'], ['External works', 2000000, '7.0']].map(([name, amount, wbs]) => ({ name, amount, wbs })),
+      subs: [
+        { name: 'Foundation Specialists LLC', scope: 'Bored piling and pile caps', wbs: '2.0', type: 'Remeasured', value: 6400000, variations: 380000, paid: 6450000, retention: 5, start: '2026-01-15', finish: '2026-05-10', ldRate: 5000, status: 'Completed' },
+        { name: 'Glass and Aluminium Co.', scope: 'Curtain wall, glazing and louvres', wbs: '4.0', type: 'Supply and install', value: 7100000, variations: 120000, paid: 1650000, retention: 10, start: '2026-07-01', finish: '2027-02-15', ldRate: 8000, status: 'Active' },
+        { name: 'MEP Services LLC', scope: 'HVAC, electrical, plumbing and fire fighting', wbs: '5.0', type: 'Lump sum', value: 8300000, variations: 0, paid: 1900000, retention: 10, start: '2026-06-01', finish: '2027-04-20', ldRate: 7500, status: 'Active' },
+        { name: 'Interiors Fit-out Co.', scope: 'Partitions, ceilings, flooring and joinery', wbs: '6.0', type: 'Lump sum', value: 4600000, variations: 0, paid: 0, retention: 10, start: '2026-10-01', finish: '2027-05-25', ldRate: 4000, status: 'Signed' },
+      ],
       manpower: (() => {
         const weeks = ['2026-09-07', '2026-09-14', '2026-09-21', '2026-09-28', '2026-10-05', '2026-10-12', '2026-10-19', '2026-10-26'];
         const trades = [['Civil and structure', 'Main contractor', [128, 126, 124, 120, 118, 112, 108, 104], 125], ['Façade', 'Façade subcontractor', [14, 18, 22, 26, 24, 28, 30, 32], 40],
@@ -664,12 +674,13 @@ window.Dash = (() => {
     risks: { title: 'Risk register', cols: [['id', 'ID'], ['title', 'Risk'], ['l', 'Likelihood 1-5', 'n'], ['i', 'Impact 1-5', 'n'], ['owner', 'Owner'], ['status', 'Status', 's', ['Open', 'Watch', 'Closed']]] },
     pcos: { title: 'PCOs and change orders', cols: [['no', 'PCO No.'], ['desc', 'Description'], ['value', 'Value', 'n'], ['days', 'Time (days)', 'n'], ['status', 'Status', 's', ['Potential', 'Submitted', 'Approved', 'Rejected']], ['co', 'CO No.'], ['source', 'Source']] },
     boq: { title: 'BOQ summary', note: 'Bills or sections of the priced BOQ and the WBS element each one funds.', cols: [['name', 'Bill / section'], ['amount', 'Amount', 'n'], ['wbs', 'WBS code', 'w']] },
+    subs: { title: 'Subcontractor agreements', note: 'One row per subcontract or supply agreement. Current value = agreement value + approved variations.', cols: [['name', 'Subcontractor'], ['scope', 'Scope / package'], ['wbs', 'WBS', 'w'], ['type', 'Contract type', 's', ['Lump sum', 'Remeasured', 'Unit rate', 'Cost plus', 'Labour only', 'Supply only', 'Supply and install']], ['value', 'Agreement value', 'n'], ['variations', 'Approved variations', 'n'], ['paid', 'Paid to date', 'n'], ['retention', 'Retention %', 'n'], ['start', 'Start', 'd'], ['finish', 'Finish', 'd'], ['ldRate', 'LD rate per day', 'n'], ['status', 'Status', 's', ['Draft', 'Signed', 'Active', 'Completed', 'Terminated']]] },
     manpower: { title: 'Manpower log', note: 'Headcount on site by trade for each day or week. Planned headcount is optional and draws the planned line.', cols: [['date', 'Date', 'd'], ['trade', 'Trade / category'], ['company', 'Company'], ['count', 'Headcount', 'n'], ['planned', 'Planned headcount', 'n']] },
     plant: { title: 'Plant and equipment log', note: 'Hours for each item of plant per day or week.', cols: [['date', 'Date', 'd'], ['equipment', 'Equipment'], ['qty', 'Quantity', 'n'], ['working', 'Working hours', 'n'], ['idle', 'Idle hours', 'n'], ['breakdown', 'Breakdown hours', 'n'], ['remarks', 'Remarks']] },
     log: { title: 'Project log', note: 'Decisions, actions, critical issues and variations. Added automatically from uploaded minutes of meeting, or entered by hand. Items linked to a WBS element appear on the programme chart.', cols: [['date', 'Date', 'd'], ['mom', 'Source (meeting)'], ['type', 'Type', 's', ['Decision', 'Action', 'Variation', 'Critical issue', 'Note']], ['critical', 'Critical', 's', ['No', 'Yes']], ['text', 'Item'], ['owner', 'Owner'], ['due', 'Due', 'd'], ['wbs', 'WBS', 'w'], ['status', 'Status', 's', ['Open', 'Closed']]] },
   };
   const TABS = [['overview', 'Overview'], ['schedule', 'Schedule & progress'], ['meetings', 'Meetings & decisions'], ['resources', 'Manpower & plant'], ['payments', 'Payments'], ['interfaces', 'Interfaces'], ['risks', 'Risks & changes'], ['contract', 'Contract & BOQ'], ['settings', 'Settings']];
-  const TAB_TABLES = { schedule: ['wbs', 'progress', 'milestones', 'costs'], meetings: ['log'], resources: ['manpower', 'plant'], contract: ['boq'], payments: ['ipcs', 'payments'], interfaces: ['interfaces'], risks: ['risks', 'pcos'], overview: [], settings: [] };
+  const TAB_TABLES = { schedule: ['wbs', 'progress', 'milestones', 'costs'], meetings: ['log'], resources: ['manpower', 'plant'], contract: ['boq', 'subs'], payments: ['ipcs', 'payments'], interfaces: ['interfaces'], risks: ['risks', 'pcos'], overview: [], settings: [] };
 
   const esc = s => String(s ?? '').replace(/[&<>"']/g, c => ({ '&': '&amp;', '<': '&lt;', '>': '&gt;', '"': '&quot;', "'": '&#39;' }[c]));
   const num = v => { const n = parseFloat(String(v ?? '').replace(/,/g, '')); return isFinite(n) ? n : 0; };
@@ -712,7 +723,7 @@ window.Dash = (() => {
     } catch (e) { savedAt = 'Not saved: browser storage is full or blocked. Export your data.'; return false; }
   }
   function switchTo(id) { const ix = index(); ix.current = id; writeIndex(ix); D = load(); syncContract(); pending = null; queue = []; savedAt = ''; render(); }
-  const blank = (name, currency) => normalize({ project: { name: name || 'New project', currency: currency || 'AED', contract: 0, retention: 5, dataDate: new Date().toISOString().slice(0, 10) }, wbs: [], progress: [], costs: [], milestones: [], interfaces: [], risks: [], pcos: [], ipcs: [], payments: [], log: [], meetings: [], manpower: [], plant: [], boq: [] });
+  const blank = (name, currency) => normalize({ project: { name: name || 'New project', currency: currency || 'AED', contract: 0, retention: 5, dataDate: new Date().toISOString().slice(0, 10) }, wbs: [], progress: [], costs: [], milestones: [], interfaces: [], risks: [], pcos: [], ipcs: [], payments: [], log: [], meetings: [], manpower: [], plant: [], boq: [], subs: [] });
   const cur = () => D.project.currency || '';
   function money(n, full) {
     const a = Math.abs(n), sg = n < 0 ? '−' : '';
@@ -1206,6 +1217,17 @@ window.Dash = (() => {
   }
   function docReview() {
     const p = docPend;
+    if (p.kind === 'sub') {
+      const F = p.fields, sc = SCHEMA.subs.cols;
+      const inp = c => c[2] === 's' ? `<select data-sf="${c[0]}">${c[3].map(o => `<option${o === F[c[0]] ? ' selected' : ''}>${o}</option>`).join('')}</select>`
+        : `<input data-sf="${c[0]}"${c[2] === 'd' ? ' type="date"' : c[2] === 'n' ? ' inputmode="decimal"' : c[2] === 'w' ? ' list="dash-wbs4"' : ''} value="${esc(F[c[0]] ?? '')}">`;
+      return `<section class="card review"><h3>Review subcontract agreement: ${esc(p.fileName)}</h3>
+        <p class="cap">Details read from the agreement. Correct anything misread; the file is stored compressed with the record so you can open it later.</p>
+        <div class="pform">${sc.map(c => `<label>${c[1]}${inp(c)}</label>`).join('')}</div>
+        <datalist id="dash-wbs4">${D.wbs.map(w => `<option value="${esc(w.code)}">${esc(w.name)}</option>`).join('')}</datalist>
+        <div class="acts"><button type="button" class="btn sm primary" data-act="doc-apply">Add to subcontract register</button><button type="button" class="btn sm" data-act="doc-discard">Discard</button></div>
+        <details class="xt"><summary>Show the extracted text</summary><pre>${esc(p.text.slice(0, 20000))}</pre></details></section>`;
+    }
     if (p.kind === 'tender') {
       const rows = p.rows.map((r, i) => `<tr class="${r.include ? '' : 'off'}"><td><input type="checkbox" data-di="${i}" data-dk="include"${r.include ? ' checked' : ''} aria-label="Use this value"></td><td>${esc(r.label)}</td>
         <td><input data-di="${i}" data-dk="value"${/date|commencement|completion/i.test(r.key) ? ' type="date"' : ''} value="${esc(r.value)}"></td><td>${esc(D.project[r.key] ?? '—')}</td></tr>`).join('');
@@ -1254,7 +1276,15 @@ window.Dash = (() => {
       <details class="xt"><summary>Show the extracted text</summary><pre>${esc(p.text.slice(0, 20000))}</pre></details></section>`;
   }
   function setDocMsg() { const m = root && root.querySelector('[data-msg="doc"]'); if (m) m.textContent = docBusy; }
-  function readDoc(kind, text, fileName) {
+  function readDoc(kind, text, fileName, file) {
+    if (kind === 'sub') {
+      const t = Mom.parseTender(text), scope = t.scope || '';
+      const fields = { name: t.subcontractor || t.contractor || '', scope, wbs: Mom.wbsMatch(scope + ' ' + text.slice(0, 1500), D.wbs) || '', type: /remeasur|re-measur|bill of quantities/i.test(text) ? 'Remeasured' : /supply and install|supply & install/i.test(text) ? 'Supply and install' : /labour only/i.test(text) ? 'Labour only' : 'Lump sum',
+        value: t.contract || 0, variations: 0, paid: 0, retention: t.retention || 0, start: t.commencement || '', finish: t.completion || '', ldRate: t.ldPer === 'week' ? Math.round((t.ldRate || 0) / 7) : t.ldRate || 0, status: 'Signed' };
+      docPend = { kind, text, fileName, file: file || null, fields };
+      docBusy = `Subcontract read from ${fileName}${fields.name ? ': ' + fields.name : ''}. Check the details below, then add it to the register.`;
+      tab = 'contract'; render(); return;
+    }
     if (kind === 'tender') {
       const f = Mom.parseTender(text), rows = TENDER_FIELDS.filter(([k]) => f[k]).map(([k, label]) => ({ include: true, key: k, label, value: f[k] }));
       docPend = { kind, text, fileName, rows };
@@ -1268,7 +1298,7 @@ window.Dash = (() => {
       docPend = Object.assign(r, { kind, text, fileName, mode: 'merge', setDate: true });
       docBusy = `${r.rows.length} ${kind === 'wbs' ? 'WBS rows' : 'progress values'} found in ${fileName}. Review them below.`;
     }
-    tab = kind === 'tender' || kind === 'boq' ? 'contract' : 'schedule'; render();
+    tab = ['tender', 'boq', 'sub'].includes(kind) ? 'contract' : 'schedule'; render();
   }
   const TENDER_FIELDS = [['name', 'Project name'], ['employer', 'Employer / client'], ['contractor', 'Contractor'], ['currency', 'Currency'], ['contract', 'Contract sum'],
     ['commencement', 'Commencement date'], ['completion', 'Completion date'], ['periodDays', 'Time for completion (days)'], ['retention', 'Retention %'], ['advance', 'Advance payment %'],
@@ -1330,6 +1360,30 @@ window.Dash = (() => {
       ${tbl(['Code', 'Element', 'Cost (share)', 'Days (share)', 'Complexity K', 'K·T share', 'Weight W', 'Actual %', 'W × actual'], tr, [2, 3, 4, 5, 6, 7, 8])}`, 1);
   }
 
+  // ---------- subcontractor agreements ----------
+  const subCur = r => num(r.value) + num(r.variations);
+  const boqOf = code => { const b = sum(D.boq.filter(x => String(x.wbs) === String(code)), x => x.amount); if (b) return b; const w = D.wbs.find(x => String(x.code) === String(code)); return w ? num(w.budget) : 0; };
+  function subKpi() {
+    const live = D.subs.filter(r => r.status !== 'Terminated'), tot = sum(live, subCur), paid = sum(live, r => r.paid);
+    if (!live.length) return '';
+    return kpi(`Subcontracted (${esc(cur())})`, money(tot), `${live.length} agreements · ${num(D.project.contract) ? (tot / num(D.project.contract) * 100).toFixed(0) + '% of contract · ' : ''}paid ${money(paid)}`);
+  }
+  function subCard() {
+    const rows = D.subs.map(r => {
+      const cv = subCur(r), boq = r.wbs ? boqOf(r.wbs) : 0, mg = boq ? (boq - cv) / boq * 100 : null, pp = cv ? num(r.paid) / cv * 100 : 0;
+      const tone = { Draft: '', Signed: 'info', Active: 'warn', Completed: 'good', Terminated: 'bad' }[r.status] || '';
+      return `<tr><td><b>${esc(r.name)}</b><br><small class="cap">${esc(r.type)}</small></td><td>${esc(r.scope)}</td><td>${r.wbs ? esc(wbsLabel(r.wbs)) : '—'}</td>
+        <td class="r">${money(cv, true)}${num(r.variations) ? `<br><small class="cap">incl. ${money(num(r.variations))} VOs</small>` : ''}</td><td class="r">${money(num(r.paid), true)}<br><small class="cap">${pp.toFixed(0)}%</small></td>
+        <td class="r">${money(cv - num(r.paid), true)}</td><td class="r">${mg === null ? '—' : `<span class="tag ${mg < 5 ? 'bad' : mg < 12 ? 'warn' : 'good'}">${mg.toFixed(1)}%</span>`}</td>
+        <td>${fmtD(r.start)} – ${fmtD(r.finish)}</td><td><span class="tag ${tone}">${esc(r.status)}</span></td>
+        <td>${r.file ? `<button type="button" class="btn sm" data-act="sub-open" data-id="${esc(r.fileId)}">Open</button>` : ''}</td></tr>`;
+    });
+    const live = D.subs.filter(r => r.status !== 'Terminated');
+    if (rows.length) rows.push(`<tr class="tot"><td>Total</td><td></td><td></td><td class="r">${money(sum(live, subCur), true)}</td><td class="r">${money(sum(live, r => r.paid), true)}</td><td class="r">${money(sum(live, r => subCur(r) - num(r.paid)), true)}</td><td></td><td></td><td></td><td></td></tr>`);
+    return card('Subcontractor agreements', 'Margin = (BOQ value of the linked WBS − current subcontract value) ÷ BOQ value: red under 5%, amber under 12%. Add agreements by uploading them above, or in the edit section below.',
+      tbl(['Subcontractor', 'Scope', 'WBS', 'Current value', 'Paid', 'Outstanding', 'Margin', 'Period', 'Status', ''], rows, [3, 4, 5, 6]), 1);
+  }
+
   // ---------- contract particulars and BOQ ----------
   function vContract() {
     const p = D.project, c = esc(cur()), boqTotal = sum(D.boq, r => r.amount);
@@ -1343,32 +1397,44 @@ window.Dash = (() => {
       ${kpi(`BOQ total (${c})`, boqTotal ? money(boqTotal) : '—', boqTotal ? (Math.abs(gap) < 1 ? 'matches the contract sum' : `${gap > 0 ? 'below' : 'above'} contract sum by ${money(Math.abs(gap))}`) : 'upload the BOQ', boqTotal ? (Math.abs(gap) < 1 ? 'good' : 'warn') : '')}
       ${kpi('Contract period', p.commencement && p.completion ? `${Math.round((dt(p.completion) - dt(p.commencement)) / DAY)} days` : '—', p.commencement ? `${fmtD(p.commencement)} → ${fmtD(p.completion)}` : 'commencement not set')}
       ${ldKpi()}
+      ${subKpi()}
       ${kpi('Liquidated damages', num(p.ldRate) ? `${money(num(p.ldRate))}/${esc(p.ldPer || 'day')}` : '—', num(p.ldCap) ? `capped at ${num(p.ldCap)}% (${money(num(p.contract) * num(p.ldCap) / 100)})` : 'no cap recorded')}
     </div>
-    <section class="card upl"><h3>Set up from tender and contract documents</h3>
+    <section class="card upl"><h3>Set up from tender, contract and subcontract documents</h3>
       <p class="cap">Upload the tender or contract document (form of agreement, particular conditions, appendix to tender) to fill the contract particulars, and the priced BOQ to set WBS budgets. Files are read in your browser; you review everything before it is applied.</p>
       <div class="dgrid">
         <label class="drop" data-drop-kind="tender"><input type="file" accept=".pdf,image/*,.txt" data-act="tender-file" hidden><b>Upload tender / contract document</b><span>Contract sum, dates, retention, advance, LDs, defects period</span></label>
         <label class="drop" data-drop-kind="boq"><input type="file" accept=".pdf,image/*,.txt" data-act="boq-file" hidden><b>Upload priced BOQ</b><span>Bills and section totals, mapped to the WBS</span></label>
+        <label class="drop" data-drop-kind="sub"><input type="file" accept=".pdf,image/*,.txt" data-act="sub-file" hidden><b>Upload subcontract agreement</b><span>Subcontractor, scope, value, dates, retention, LDs</span></label>
       </div>
       <details class="paste"><summary>Or paste the document text</summary><textarea data-doc-text rows="6" placeholder="Paste the contract particulars or the BOQ here"></textarea>
-        <button type="button" class="btn sm" data-act="doc-paste-tender">Read as tender / contract</button> <button type="button" class="btn sm" data-act="doc-paste-boq">Read as BOQ</button></details>
+        <button type="button" class="btn sm" data-act="doc-paste-tender">Read as tender / contract</button> <button type="button" class="btn sm" data-act="doc-paste-boq">Read as BOQ</button> <button type="button" class="btn sm" data-act="doc-paste-sub">Read as subcontract</button></details>
       <p class="cap momst" data-msg="doc" role="status">${esc(docBusy)}</p></section>
-    ${docPend && (docPend.kind === 'tender' || docPend.kind === 'boq') ? docReview() : ''}
+    ${docPend && ['tender', 'boq', 'sub'].includes(docPend.kind) ? docReview() : ''}
     <div class="dgrid">
       ${card('Contract particulars', 'Edit directly or fill from the contract document above.', `<div class="pform">${fld('employer', 'Employer / client')}${fld('contractor', 'Contractor')}${fld('contract', 'Contract sum')}${fld('currency', 'Currency')}
         ${fld('commencement', 'Commencement date', 'date')}${fld('completion', 'Completion date', 'date')}${fld('retention', 'Retention %')}${fld('advance', 'Advance payment %')}
         ${fld('ldRate', 'LD rate')}<label>LDs per<select data-p="ldPer">${['day', 'week'].map(o => `<option${(p.ldPer || 'day') === o ? ' selected' : ''}>${o}</option>`).join('')}</select></label>${fld('ldCap', 'LD cap %')}${fld('dlpMonths', 'Defects period (months)')}</div>`, 1)}
+      ${subCard()}
       ${card('BOQ summary by bill', 'Each bill or section of the priced BOQ, its share of the total and the WBS element it funds.', tbl(['Bill / section', 'Amount', 'Share', 'WBS element'], rows, [1, 2]), 1)}
     </div>`;
   }
   async function processDoc(kind, file) {
     if (busy) return; busy = true; docBusy = `Reading ${file.name}…`; setDocMsg();
-    try { const text = await Mom.extractText(file, s => { docBusy = `${file.name}: ${s}`; setDocMsg(); }); busy = false; readDoc(kind, text, file.name); }
+    try { const text = await Mom.extractText(file, s => { docBusy = `${file.name}: ${s}`; setDocMsg(); }); busy = false; readDoc(kind, text, file.name, file); }
     catch (err) { busy = false; docBusy = `${file.name}: ${err && err.message ? err.message : 'could not be read'}`; setDocMsg(); }
   }
   function applyDoc() {
     const p = docPend; if (!p) return;
+    if (p.kind === 'sub') {
+      const F = p.fields, row = Object.fromEntries(SCHEMA.subs.cols.map(c => [c[0], c[2] === 'n' ? num(F[c[0]]) : F[c[0]] ?? '']));
+      row.fileId = 'sub-' + Date.now().toString(36); row.file = p.file ? p.fileName : '';
+      D.subs.push(row); docPend = null; save();
+      docBusy = `Added ${row.name || 'subcontract'} (${money(row.value, true)}) to the register.`;
+      render();
+      Mom.compact(p.file, p.text, () => {}).then(rec => Mom.putFile(row.fileId, rec)).then(() => { row.stored = true; save(); }).catch(() => {});
+      return;
+    }
     const rows = p.rows.filter(r => r.include);
     if (p.kind === 'tender') {
       for (const r of rows) D.project[r.key] = P_NUM.includes(r.key) ? num(r.value) : r.value;
@@ -1686,6 +1752,7 @@ window.Dash = (() => {
   }
   function setDoc(t) {
     if (!docPend) return false;
+    if (t.dataset.sf) { const c = SCHEMA.subs.cols.find(x => x[0] === t.dataset.sf); docPend.fields[t.dataset.sf] = c && c[2] === 'n' ? num(t.value) : t.value; return true; }
     if (t.dataset.dm) { docPend[t.dataset.dm] = t.type === "checkbox" ? t.checked : t.value; return true; }
     if (t.dataset.dk) { const r = docPend.rows[+t.dataset.di], k = t.dataset.dk; r[k] = k === "include" ? t.checked : t.value; if (k === "include") t.closest("tr").classList.toggle("off", !t.checked); return true; }
     return false;
@@ -1695,7 +1762,7 @@ window.Dash = (() => {
     const t = e.target;
     if (setPending(t) || setDoc(t)) return;
     if (t.hasAttribute('data-momreview')) { D.project.momReview = t.checked; save(); return; }
-    const KIND = { 'wbs-file': 'wbs', 'prog-file': 'prog', 'tender-file': 'tender', 'boq-file': 'boq' };
+    const KIND = { 'wbs-file': 'wbs', 'prog-file': 'prog', 'tender-file': 'tender', 'boq-file': 'boq', 'sub-file': 'sub' };
     if (KIND[t.dataset.act] && t.files.length) { const f = t.files[0]; t.value = ''; processDoc(KIND[t.dataset.act], f); return; }
     if (t.dataset.act === 'proj-switch') { switchTo(t.value); return; }
     if (t.dataset.act === 'mom-file' && t.files.length) { queue.push(...t.files); t.value = ''; processNext(); setMomMsg(); return; }
@@ -1737,6 +1804,7 @@ window.Dash = (() => {
     if (a === 'mom-save') { commitPending(); return; }
     if (a && a.startsWith('doc-paste-')) { const ta = root.querySelector('[data-doc-text]'), txt = ta ? ta.value.trim() : ''; if (!txt) { docBusy = 'Paste the document text first.'; setDocMsg(); return; } readDoc(a.slice(10), txt, 'Pasted text'); return; }
     if (a === 'doc-apply') { applyDoc(); return; }
+    if (a === 'sub-open') { Mom.openStored(b.dataset.id).catch(err => { docBusy = err.message; setDocMsg(); }); return; }
     if (a === 'doc-discard') { docPend = null; docBusy = 'Discarded.'; render(); return; }
     if (a === 'mom-discard') { pending = null; momBusy = 'Discarded.'; render(); processNext(); return; }
     if (a === 'mom-open') { Mom.openStored(b.dataset.id).catch(err => { momBusy = err.message; setMomMsg(); }); return; }
